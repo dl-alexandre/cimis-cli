@@ -34,14 +34,14 @@ jobs:
           token: ${{ secrets.GH_PAT }}
           path: _deps/cimis-tsdb
 
-      - name: Update go.mod for CI
-        run: go mod edit -replace github.com/dl-alexandre/cimis-tsdb=./_deps/cimis-tsdb
-
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version-file: 'go.mod'
           cache: true
+
+      - name: Update go.mod for CI
+        run: go mod edit -replace github.com/dl-alexandre/cimis-tsdb=./_deps/cimis-tsdb
 
       - name: Get version
         id: version
