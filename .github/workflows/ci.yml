@@ -96,5 +96,9 @@ jobs:
     - name: Build
       run: go build -v ./...
 
+    - name: Build pure Go (no CGO)
+      run: CGO_ENABLED=0 go build -v ./cmd/cimis
+      if: matrix.os == 'ubuntu-latest'
+
     - name: Run tests
       run: go test -v ./...

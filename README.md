@@ -26,6 +26,15 @@ cd cimis-cli
 make build
 ```
 
+For a **pure-Go build** (no C compiler required):
+
+```bash
+make build-pure
+```
+
+The pure-Go build only compiles the `internal/api` package. The full CLI requires CGO/SQLite.
+See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for build instructions.
+
 ## Setup
 
 1. Get a CIMIS API key from [CIMIS Web Services](https://cimis.water.ca.gov/Default.aspx)
