@@ -32,8 +32,8 @@ For a **pure-Go build** (no C compiler required):
 make build-pure
 ```
 
-The pure-Go build omits the C storage layer but retains all CLI functionality.
-See [DOCS.md](DOCS.md) for additional documentation.
+The pure-Go build only compiles the `internal/api` package. The full CLI requires CGO/SQLite.
+See [CONTRIBUTING.md](docs/CONTRIBUTING.md) for build instructions.
 
 ## Setup
 
