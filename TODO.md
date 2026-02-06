@@ -17,13 +17,13 @@ makes isolated testing difficult.
 each command independently readable, testable, and reviewable.
 
 **What:**
-- [ ] Extract `fetch` command logic → `cmd/cimis/fetch.go`
-- [ ] Extract `query` command logic → `cmd/cimis/query.go`
-- [ ] Extract `ingest` command logic → `cmd/cimis/ingest.go`
-- [ ] Extract `stats` command logic → `cmd/cimis/stats.go`
-- [ ] Extract `verify` command logic → `cmd/cimis/verify.go`
-- [ ] Extract `init` command logic → `cmd/cimis/init.go`
-- [ ] Keep `main.go` as thin dispatcher: flag parsing, subcommand routing, version
+- [x] Extract `fetch` command logic → `cmd/cimis/fetch.go`
+- [x] Extract `query` command logic → `cmd/cimis/query.go`
+- [x] Extract `ingest` command logic → `cmd/cimis/ingest.go`
+- [x] Extract `stats` command logic → `cmd/cimis/stats.go`
+- [x] Extract `verify` command logic → `cmd/cimis/verify.go`
+- [x] Extract `init` command logic → `cmd/cimis/init.go`
+- [x] Keep `main.go` as thin dispatcher: flag parsing, subcommand routing, version
 
 **Scope:** `cmd/cimis/` only. No behavior changes.
 
@@ -33,11 +33,11 @@ each command independently readable, testable, and reviewable.
 and response deserialization — all testable without a live API.
 
 **What:**
-- [ ] Test `parseCIMISDate` with valid dates, edge cases, empty strings
-- [ ] Test `convertToRecord` with known input/output pairs
-- [ ] Test QC flag extraction and mapping
-- [ ] Test error handling for malformed API responses (mock HTTP)
-- [ ] Test `FetchData` with a mock HTTP server (`httptest.NewServer`)
+- [x] Test `parseCIMISDate` with valid dates, edge cases, empty strings
+- [x] Test `convertToRecord` with known input/output pairs
+- [x] Test QC flag extraction and mapping
+- [x] Test error handling for malformed API responses (mock HTTP)
+- [x] Test `FetchData` with a mock HTTP server (`httptest.NewServer`)
 
 **Scope:** `internal/api/client_test.go` (new file).
 
@@ -47,9 +47,9 @@ and response deserialization — all testable without a live API.
 that should have table-driven tests.
 
 **What:**
-- [ ] Test `parseCacheSize` — "100MB", "1.5GB", "512KB", "", invalid input
-- [ ] Test metrics JSON output formatting
-- [ ] Test retry/backoff error classification
+- [x] Test `parseCacheSize` — "100MB", "1.5GB", "512KB", "", invalid input
+- [x] Test metrics JSON output formatting
+- [x] Test retry/backoff error classification
 
 **Scope:** `cmd/cimis/main_test.go` and `cmd/cimis/metrics_test.go` (new files).
 
@@ -136,9 +136,9 @@ material that could live in a `docs/` directory.
 
 | Phase | Item | Priority | Effort |
 |-------|------|----------|--------|
-| 1.1 | Split `main.go` | High | Medium |
-| 1.2 | Unit tests for API client | High | Medium |
-| 1.3 | Unit tests for utilities | High | Small |
+| 1.1 | ~~Split `main.go`~~ | ~~High~~ | Done |
+| 1.2 | ~~Unit tests for API client~~ | ~~High~~ | Done |
+| 1.3 | ~~Unit tests for utilities~~ | ~~High~~ | Done |
 | 2.1 | Resolve `cimis-tsdb` dependency | Medium | Varies |
 | 2.2 | Centralize constants | Medium | Small |
 | 2.3 | Improve error context | Medium | Small |
