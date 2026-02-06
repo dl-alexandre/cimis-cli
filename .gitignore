@@ -1,0 +1,41 @@
+# Binaries
+/build/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Output of the go coverage tool
+*.out
+coverage.html
+
+# Data files (don't commit actual data)
+/data/
+*.sqlite3
+*.sqlite
+*.db
+*.zst
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Dependencies (vendor if needed)
+/vendor/
+
+# Logs
+*.log
+
+# Temporary files
+/tmp/
+*.tmp
