@@ -10,7 +10,7 @@ All production hardening tasks complete. The streaming JSON decode is now the **
 ## Changes Made
 
 ### 1. ingest Command - NOW USES STREAMING CLIENT
-**File**: `cmd/cimisdb/main.go`
+**File**: `cmd/cimis/main.go`
 
 **Before**:
 ```go
@@ -46,7 +46,7 @@ Commands:
 
 ### Test 1: ingest Command with Streaming
 ```bash
-$ ./build/cimisdb ingest -station 2 -year 2024
+$ ./build/cimis ingest -station 2 -year 2024
 Fetching daily data for station 2, year 2024...
   Fetch: 1.15s (DNS: 1.01s, TCP: 0s, TLS: 0s, TTFB: 1.01s)
 Ingested 366 daily records
@@ -61,7 +61,7 @@ Ingested 366 daily records
 ### Test 2: All Unit Tests
 ```bash
 $ go test -short ./...
-ok  	cmd/cimisdb
+ok  	cmd/cimis
 ok  	internal/profile
 ok  	internal/storage
 ```
@@ -129,8 +129,8 @@ ok  	internal/storage
 ## Files Modified
 
 ```
-cimisdb/
-├── cmd/cimisdb/
+cimis/
+├── cmd/cimis/
 │   ├── main.go          # MODIFIED: ingest uses streaming client
 │   └── metrics.go       # NEW: Production hardening utilities
 └── internal/api/

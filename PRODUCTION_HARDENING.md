@@ -10,7 +10,7 @@ All 7 production hardening tasks have been implemented. This document summarizes
 
 ### ✅ 1. Allocation Measurement (`-allocs` flag)
 
-**File:** `cmd/cimisdb/metrics.go`
+**File:** `cmd/cimis/metrics.go`
 
 **Features:**
 - `CaptureAllocMetrics()` - Captures heap stats before/after fetch
@@ -19,7 +19,7 @@ All 7 production hardening tasks have been implemented. This document summarizes
 
 **Usage:**
 ```bash
-./build/cimisdb fetch-streaming -stations 2 -year 2024 -allocs -perf
+./build/cimis fetch-streaming -stations 2 -year 2024 -allocs -perf
 ```
 
 **Validation:**
@@ -46,7 +46,7 @@ All 7 production hardening tasks have been implemented. This document summarizes
 
 **Validation:**
 ```bash
-./build/cimisdb fetch-streaming -stations 2 -year 2024 -gzip -perf
+./build/cimis fetch-streaming -stations 2 -year 2024 -gzip -perf
 # Should show: Content-Encoding: gzip in output
 ```
 
@@ -61,7 +61,7 @@ All 7 production hardening tasks have been implemented. This document summarizes
 4. Delete temp on error
 
 **Files:**
-- `cmd/cimisdb/metrics.go` - `VerifyAtomicWrite()`
+- `cmd/cimis/metrics.go` - `VerifyAtomicWrite()`
 - `internal/storage/chunk.go` - Uses atomic writes
 
 **Idempotency:**
@@ -81,7 +81,7 @@ ls stations/*/*.tmp  # Should be empty
 
 ### ✅ 4. Error Classification
 
-**File:** `cmd/cimisdb/metrics.go`
+**File:** `cmd/cimis/metrics.go`
 
 **Retryable Errors (with backoff):**
 - 429 Too Many Requests
@@ -111,7 +111,7 @@ func ClassifyRetryableError(err error, statusCode int) *RetryableError
 
 ### ✅ 5. JSON Output (`-json` flag)
 
-**File:** `cmd/cimisdb/metrics.go`
+**File:** `cmd/cimis/metrics.go`
 
 **Output Format:**
 ```json
@@ -154,7 +154,7 @@ func ClassifyRetryableError(err error, statusCode int) *RetryableError
 
 **Usage:**
 ```bash
-./build/cimisdb fetch-streaming -stations 2,5,10 -year 2024 -json > results.json
+./build/cimis fetch-streaming -stations 2,5,10 -year 2024 -json > results.json
 ```
 
 ---
@@ -207,7 +207,7 @@ store.SaveChunk(info)
 
 **Usage:**
 ```bash
-./build/cimisdb fetch-streaming -stations 2 -year 2024 -format v2
+./build/cimis fetch-streaming -stations 2 -year 2024 -format v2
 # V2 chunks are self-validated at creation time
 ```
 
@@ -224,7 +224,7 @@ export CIMIS_APP_KEY="your-api-key-here"
 # Build
 make build-pure
 # or
-go build -o ./build/cimisdb ./cmd/cimisdb
+go build -o ./build/cimis ./cmd/cimis
 ```
 
 ### Smoke Test Suite
@@ -237,10 +237,10 @@ echo "=== Production Smoke Tests ==="
 
 # 1. Init fresh DB
 rm -rf ./test_data
-./build/cimisdb init -data-dir ./test_data
+./build/cimis init -data-dir ./test_data
 
 # 2. Fetch with streaming (multiple stations, concurrent)
-./build/cimisdb fetch-streaming \
+./build/cimis fetch-streaming \
   -stations 2,5,10 \
   -year 2024 \
   -concurrency 8 \
@@ -249,10 +249,10 @@ rm -rf ./test_data
   -data-dir ./test_data
 
 # 3. Verify chunks
-./build/cimisdb verify -data-dir ./test_data
+./build/cimis verify -data-dir ./test_data
 
 # 4. Query (cold)
-./build/cimisdb query \
+./build/cimis query \
   -station 2 \
   -start 2024-06-01 \
   -end 2024-06-07 \
@@ -260,7 +260,7 @@ rm -rf ./test_data
   -data-dir ./test_data
 
 # 5. Query (warm - should be faster)
-./build/cimisdb query \
+./build/cimis query \
   -station 2 \
   -start 2024-06-01 \
   -end 2024-06-07 \
@@ -269,7 +269,7 @@ rm -rf ./test_data
   -data-dir ./test_data
 
 # 6. JSON output test
-./build/cimisdb fetch-streaming \
+./build/cimis fetch-streaming \
   -stations 2 \
   -year 2024 \
   -json \
@@ -291,11 +291,11 @@ STATION=2
 YEAR=2024
 
 echo "Test 1:"
-./build/cimisdb fetch-streaming -stations $STATION -year $YEAR -data-dir ./test1
+./build/cimis fetch-streaming -stations $STATION -year $YEAR -data-dir ./test1
 cp ./test1/stations/002/${YEAR}_daily.zst /tmp/chunk1.zst
 
 echo "Test 2:"
-./build/cimisdb fetch-streaming -stations $STATION -year $YEAR -data-dir ./test2
+./build/cimis fetch-streaming -stations $STATION -year $YEAR -data-dir ./test2
 cp ./test2/stations/002/${YEAR}_daily.zst /tmp/chunk2.zst
 
 # Compare
@@ -319,13 +319,13 @@ echo "=== Benchmark: Allocation Comparison ==="
 
 echo ""
 echo "Old path (standard fetch):"
-time ./build/cimisdb fetch -station $STATION -year $YEAR -data-dir ./bench_old
+time ./build/cimis fetch -station $STATION -year $YEAR -data-dir ./bench_old
 
 # Check memory (would need to add -allocs to fetch command)
 
 echo ""
 echo "New path (streaming fetch):"
-time ./build/cimisdb fetch-streaming \
+time ./build/cimis fetch-streaming \
   -stations $STATION \
   -year $YEAR \
   -allocs \
@@ -429,18 +429,18 @@ cimis_alloc_bytes_per_record
 
 1. **Revert to V1 format:**
    ```bash
-   ./build/cimisdb fetch-streaming -format v1 ...
+   ./build/cimis fetch-streaming -format v1 ...
    ```
 
 2. **Disable streaming (use old fetch):**
    ```bash
-   ./build/cimisdb fetch ...  # Old path still available
+   ./build/cimis fetch ...  # Old path still available
    ```
 
 3. **Clear cache if corrupted:**
    ```bash
    rm -rf ./data/stations/*/*.zst
-   ./build/cimisdb fetch-streaming ...  # Re-fetch
+   ./build/cimis fetch-streaming ...  # Re-fetch
    ```
 
 ---
@@ -461,8 +461,8 @@ cimis_alloc_bytes_per_record
 ## Files Added/Modified
 
 ```
-cimisdb/
-├── cmd/cimisdb/
+cimis/
+├── cmd/cimis/
 │   ├── main.go          # MODIFIED: cmdFetchStreaming (863 lines)
 │   └── metrics.go       # NEW: Production hardening (120 lines)
 ├── internal/api/

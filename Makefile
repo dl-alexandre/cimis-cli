@@ -1,7 +1,7 @@
 .PHONY: all build clean test bench fmt vet c-lib
 
 # Build settings
-BINARY_NAME=cimisdb
+BINARY_NAME=cimis
 BUILD_DIR=./build
 GO=go
 CGO_ENABLED=1
@@ -28,12 +28,12 @@ $(C_LIB): $(C_DIR)/cimis_storage.c $(C_DIR)/cimis_storage.h
 build: $(C_LIB)
 	@mkdir -p $(BUILD_DIR)
 	CGO_ENABLED=$(CGO_ENABLED) CGO_CFLAGS="-I$(PWD)/$(C_DIR)" CGO_LDFLAGS="-L$(PWD)/$(C_DIR) -lcimis_storage" \
-		$(GO) build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/cimisdb
+		$(GO) build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/cimis
 
 # Build without C library (pure Go)
 build-pure:
 	@mkdir -p $(BUILD_DIR)
-	CGO_ENABLED=$(CGO_ENABLED) $(GO) build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/cimisdb
+	CGO_ENABLED=$(CGO_ENABLED) $(GO) build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/cimis
 
 clean:
 	@rm -rf $(BUILD_DIR)
@@ -58,7 +58,7 @@ vet:
 # Development helpers
 dev:
 	CGO_ENABLED=$(CGO_ENABLED) CGO_CFLAGS="-I$(PWD)/$(C_DIR)" CGO_LDFLAGS="-L$(PWD)/$(C_DIR) -lcimis_storage" \
-		$(GO) run ./cmd/cimisdb
+		$(GO) run ./cmd/cimis
 
 # Download dependencies
 deps:

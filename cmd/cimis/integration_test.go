@@ -22,7 +22,7 @@ func TestEndToEndIntegration(t *testing.T) {
 	dataDir := filepath.Join(tmpDir, "data")
 
 	// Build CLI
-	cliPath := filepath.Join(tmpDir, "cimisdb")
+	cliPath := filepath.Join(tmpDir, "cimis")
 	buildCmd := exec.Command("go", "build", "-o", cliPath, ".")
 	buildCmd.Dir = ".." // Project root
 	if output, err := buildCmd.CombinedOutput(); err != nil {

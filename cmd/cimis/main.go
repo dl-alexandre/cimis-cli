@@ -1,4 +1,4 @@
-// Main entry point for the cimisdb CLI.
+// Main entry point for the cimis CLI.
 package main
 
 import (
@@ -73,7 +73,7 @@ func main() {
 	// Subcommands
 	switch os.Args[1] {
 	case "version":
-		fmt.Printf("cimisdb version %s (built %s)\n", Version, BuildTime)
+		fmt.Printf("cimis version %s (built %s)\n", Version, BuildTime)
 
 	case "init":
 		cmdInit(*dataDir)
@@ -111,7 +111,7 @@ func main() {
 }
 
 func printUsage() {
-	fmt.Println(`Usage: cimisdb <command> [options]
+	fmt.Println(`Usage: cimis <command> [options]
 
 Commands:
   version          Show version information
@@ -130,22 +130,22 @@ Global Options:
 
 Examples:
    # Initialize database
-   cimisdb init
+   cimis init
 
    # Fetch recent data for station 2
-   cimisdb fetch -station 2 -days 30
+   cimis fetch -station 2 -days 30
 
    # Fetch multiple stations with streaming and detailed metrics
-   cimisdb fetch-streaming -stations 2,5,10 -year 2024 -concurrency 8 -perf
+   cimis fetch-streaming -stations 2,5,10 -year 2024 -concurrency 8 -perf
 
    # Ingest data for a specific year
-   cimisdb ingest -station 2 -year 2020
+   cimis ingest -station 2 -year 2020
 
    # Query June 2020 data
-   cimisdb query -station 2 -start 2020-06-01 -end 2020-06-30
+   cimis query -station 2 -start 2020-06-01 -end 2020-06-30
 
    # Query with caching and performance metrics
-   cimisdb query -station 2 -start 2020-06-01 -end 2020-06-30 -cache 100MB -perf`)
+   cimis query -station 2 -start 2020-06-01 -end 2020-06-30 -cache 100MB -perf`)
 }
 
 func cmdInit(dataDir string) {

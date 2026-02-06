@@ -166,7 +166,7 @@ cd cimis-cli
 make build
 
 # Run with metrics
-./build/cimisdb fetch-streaming -station 2 -year 2024 -perf
+./build/cimis fetch-streaming -station 2 -year 2024 -perf
 ```
 
 ## Next Steps

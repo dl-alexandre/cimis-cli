@@ -220,7 +220,7 @@ The Ultra format (columnar with delta/RLE/Gorilla encoding) will be integrated *
 ## File Structure
 
 ```
-cimisdb/
+cimis/
 ├── internal/api/
 │   ├── client.go           # Original (maintained)
 │   └── client_optimized.go # REMOVED (integrated into client.go)
@@ -232,7 +232,7 @@ cimisdb/
 │   └── compression.go      # Zstd wrapper
 ├── pkg/types/
 │   └── cimis.go            # Core data types
-└── cmd/cimisdb/
+└── cmd/cimis/
     ├── main.go             # CLI with query -cache support
     └── profile.go          # Memory profiling during ingest
 ```
@@ -295,13 +295,13 @@ if err == storage.ErrV2NotFound {
 1. Add comprehensive round-trip tests
 2. Implement corruption injection tests
 3. Benchmark V1 vs V2 performance
-4. Add `cimisdb doctor` command for integrity checks
+4. Add `cimis doctor` command for integrity checks
 5. Document migration guide
 
 ### Medium Term (Next Month)
 1. Integrate Ultra encoding as V2 codec option
 2. Implement dictionary training
-3. Add `cimisdb export` for mobile distribution
+3. Add `cimis export` for mobile distribution
 4. Performance regression testing in CI
 
 ---

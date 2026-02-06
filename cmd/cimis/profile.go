@@ -115,13 +115,13 @@ func cmdProfile(dataDir string, args []string) {
 		fmt.Println("No profiling option specified. Use -help to see available options.")
 		fmt.Println("\nCommon usage:")
 		fmt.Println("  Profile CPU for 30 seconds:")
-		fmt.Println("    cimisdb profile -cpu cpu.prof")
+		fmt.Println("    cimis profile -cpu cpu.prof")
 		fmt.Println("\n  Capture heap profile:")
-		fmt.Println("    cimisdb profile -heap heap.prof")
+		fmt.Println("    cimis profile -heap heap.prof")
 		fmt.Println("\n  Start pprof server:")
-		fmt.Println("    cimisdb profile -server localhost:6060")
+		fmt.Println("    cimis profile -server localhost:6060")
 		fmt.Println("\n  Print runtime stats:")
-		fmt.Println("    cimisdb profile -stats")
+		fmt.Println("    cimis profile -stats")
 	}
 }
 

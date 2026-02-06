@@ -9,7 +9,7 @@ The `fetch-streaming` command has been successfully implemented and integrated i
 ### Command: `fetch-streaming`
 
 ```bash
-cimisdb fetch-streaming -stations 2,5,10 -year 2024 -concurrency 8 -perf
+cimis fetch-streaming -stations 2,5,10 -year 2024 -concurrency 8 -perf
 ```
 
 **Flags:**
@@ -73,19 +73,19 @@ Tracks per-phase timing:
 ```bash
 # Fetch single station with metrics
 export CIMIS_APP_KEY="bb4f71ac-f2a0-4da9-b3aa-dd7cc2417b83"
-./build/cimisdb fetch-streaming -stations 2 -year 2024 -perf
+./build/cimis fetch-streaming -stations 2 -year 2024 -perf
 
 # Fetch multiple stations concurrently
-./build/cimisdb fetch-streaming -stations 2,5,10,15 -year 2024 -concurrency 4 -perf
+./build/cimis fetch-streaming -stations 2,5,10,15 -year 2024 -concurrency 4 -perf
 
 # Fetch range of stations
-./build/cimisdb fetch-streaming -stations 1-10 -year 2024 -concurrency 8
+./build/cimis fetch-streaming -stations 1-10 -year 2024 -concurrency 8
 
 # Dry run to test without writing
-./build/cimisdb fetch-streaming -stations 2 -year 2024 -dry-run -perf
+./build/cimis fetch-streaming -stations 2 -year 2024 -dry-run -perf
 
 # Custom date range
-./build/cimisdb fetch-streaming -stations 2 -start 06/01/2024 -end 06/30/2024 -perf
+./build/cimis fetch-streaming -stations 2 -start 06/01/2024 -end 06/30/2024 -perf
 ```
 
 ## Sample Output
@@ -117,7 +117,7 @@ Station 10: 366 records in 1.43s
 
 ```
 cimis-cli/
-├── cmd/cimisdb/main.go          # MODIFIED: Added cmdFetchStreaming function
+├── cmd/cimis/main.go          # MODIFIED: Added cmdFetchStreaming function
 └── internal/api/client_streaming.go  # EXISTING: Streaming client implementation
 ```
 
@@ -149,12 +149,12 @@ cimis-cli/
 ### Immediate (Today)
 1. Run verification test:
    ```bash
-   ./build/cimisdb fetch-streaming -stations 2 -year 2024 -perf
+   ./build/cimis fetch-streaming -stations 2 -year 2024 -perf
    ```
 
 2. Test parallel fetching:
    ```bash
-   ./build/cimisdb fetch-streaming -stations 1-5 -year 2024 -concurrency 4 -perf
+   ./build/cimis fetch-streaming -stations 1-5 -year 2024 -concurrency 4 -perf
    ```
 
 ### Short Term (This Week)

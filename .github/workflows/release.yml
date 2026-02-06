@@ -13,13 +13,13 @@ jobs:
     name: Build and Release
     runs-on: macos-latest
     env:
-      APP_NAME: cimisdb
+      APP_NAME: cimis
       REPO_NAME: dl-alexandre/cimis-cli
       REPO_URL: https://github.com/dl-alexandre/cimis-cli
-      PKG_NAME: cimisdb-bin
+      PKG_NAME: cimis-bin
       PKG_DESC: CIMIS time-series database CLI tool with streaming and querying support
-      FORMULA_NAME: cimisdb
-      FORMULA_CLASS: Cimisdb
+      FORMULA_NAME: cimis
+      FORMULA_CLASS: Cimis
 
     steps:
       - name: Checkout code

@@ -15,7 +15,7 @@ Built on top of the [cimis-tsdb](https://github.com/dl-alexandre/cimis-tsdb) hig
 ## Installation
 
 ```bash
-go install github.com/dl-alexandre/cimis-cli/cmd/cimisdb@latest
+go install github.com/dl-alexandre/cimis-cli/cmd/cimis@latest
 ```
 
 Or build from source:
@@ -37,7 +37,7 @@ make build
 
 3. Initialize the database:
    ```bash
-   ./build/cimisdb init
+   ./build/cimis init
    ```
 
 ## Usage
@@ -46,22 +46,22 @@ make build
 
 ```bash
 # Show version
-cimisdb version
+cimis version
 
 # Fetch recent data for a station (doesn't store)
-cimisdb fetch -station 2 -days 30
+cimis fetch -station 2 -days 30
 
 # Fetch and store data for a year
-cimisdb ingest -station 2 -year 2023
+cimis ingest -station 2 -year 2023
 
 # Query stored data
-cimisdb query -station 2 -start 2023-06-01 -end 2023-06-30
+cimis query -station 2 -start 2023-06-01 -end 2023-06-30
 
 # Show database statistics
-cimisdb stats
+cimis stats
 
 # Verify chunk integrity
-cimisdb verify
+cimis verify
 ```
 
 ### Advanced Features
@@ -72,14 +72,14 @@ Fetch multiple stations in parallel with detailed metrics:
 
 ```bash
 # Fetch multiple stations for 2024
-cimisdb fetch-streaming \
+cimis fetch-streaming \
   -stations 2,5,10,15 \
   -year 2024 \
   -concurrency 8 \
   -perf
 
 # Fetch station range
-cimisdb fetch-streaming \
+cimis fetch-streaming \
   -stations 1-20 \
   -year 2024 \
   -concurrency 10 \
@@ -91,7 +91,7 @@ cimisdb fetch-streaming \
 Enable caching for repeated queries:
 
 ```bash
-cimisdb query \
+cimis query \
   -station 2 \
   -start 2023-01-01 \
   -end 2023-12-31 \
@@ -115,7 +115,7 @@ Evictions: 0
 Use the optimized ingest command for better performance:
 
 ```bash
-cimisdb ingest-opt \
+cimis ingest-opt \
   -stations 1-100 \
   -year 2024 \
   -concurrency 16 \
@@ -127,7 +127,7 @@ cimisdb ingest-opt \
 Profile CPU and memory usage:
 
 ```bash
-cimisdb profile \
+cimis profile \
   -station 2 \
   -start 2023-01-01 \
   -end 2023-12-31 \
@@ -217,10 +217,10 @@ See the [library documentation](https://github.com/dl-alexandre/cimis-tsdb#readm
 
 ```bash
 # Fetch today's data for station 2
-cimisdb fetch-streaming -stations 2 -start $(date -v-1d +%m/%d/%Y) -end $(date +%m/%d/%Y)
+cimis fetch-streaming -stations 2 -start $(date -v-1d +%m/%d/%Y) -end $(date +%m/%d/%Y)
 
 # Query last 7 days
-cimisdb query -station 2 -start $(date -v-7d +%Y-%m-%d) -end $(date +%Y-%m-%d)
+cimis query -station 2 -start $(date -v-7d +%Y-%m-%d) -end $(date +%Y-%m-%d)
 ```
 
 ### Historical Data Ingestion
@@ -228,7 +228,7 @@ cimisdb query -station 2 -start $(date -v-7d +%Y-%m-%d) -end $(date +%Y-%m-%d)
 ```bash
 # Fetch all available stations for 2020-2024
 for year in {2020..2024}; do
-  cimisdb fetch-streaming \
+  cimis fetch-streaming \
     -stations 1-100 \
     -year $year \
     -concurrency 20 \
@@ -241,7 +241,7 @@ done
 
 ```bash
 # Export to CSV for analysis
-cimisdb query -station 2 -start 2023-01-01 -end 2023-12-31 > station2_2023.csv
+cimis query -station 2 -start 2023-01-01 -end 2023-12-31 > station2_2023.csv
 ```
 
 ## Troubleshooting
@@ -250,7 +250,7 @@ cimisdb query -station 2 -start 2023-01-01 -end 2023-12-31 > station2_2023.csv
 
 **Out of memory**: Reduce cache size or batch size for large queries.
 
-**Corrupted chunks**: Run `cimisdb verify` to identify and remove corrupted files.
+**Corrupted chunks**: Run `cimis verify` to identify and remove corrupted files.
 
 ## License
 
