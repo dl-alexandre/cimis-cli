@@ -96,6 +96,7 @@ func cmdIngestOptimized(dataDir, appKey string, args []string) {
 	fmt.Printf("  Overall ratio: %.2fx\n", float64(originalSize)/float64(compressedSize))
 	fmt.Printf("  Bytes per record: %.2f\n", stats.BytesPerRecord)
 	fmt.Printf("  Space savings: %.1f%%\n", stats.SpaceSavingsPct)
+	fmt.Printf("  Compression ratio: %.2fx\n", stats.CompressionRatio)
 	fmt.Printf("  Stored in: %s\n", chunkPath)
 
 	// Save metadata
