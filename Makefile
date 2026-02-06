@@ -30,10 +30,10 @@ build: $(C_LIB)
 	CGO_ENABLED=$(CGO_ENABLED) CGO_CFLAGS="-I$(PWD)/$(C_DIR)" CGO_LDFLAGS="-L$(PWD)/$(C_DIR) -lcimis_storage" \
 		$(GO) build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/cimis
 
-# Build without C library (pure Go)
+# Build without C library (pure Go, no C compiler required)
 build-pure:
 	@mkdir -p $(BUILD_DIR)
-	CGO_ENABLED=$(CGO_ENABLED) $(GO) build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/cimis
+	CGO_ENABLED=0 $(GO) build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/cimis
 
 clean:
 	@rm -rf $(BUILD_DIR)
