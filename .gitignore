@@ -1,5 +1,6 @@
 # Binaries
 /build/
+/cimis
 *.exe
 *.dll
 *.so
@@ -32,6 +33,7 @@ Thumbs.db
 
 # Dependencies (vendor if needed)
 /vendor/
+/_deps/
 
 # Logs
 *.log
