@@ -23,10 +23,10 @@ func cmdStats(dataDir string) {
 
 	fmt.Println("Database Statistics")
 	fmt.Println("===================")
-	fmt.Printf("Stations:           %d\n", stats["station_count"])
-	fmt.Printf("Active stations:    %d\n", stats["active_station_count"])
-	fmt.Printf("Total chunks:       %d\n", stats["chunk_count"])
-	fmt.Printf("Total rows:         %d\n", stats["total_rows"])
-	fmt.Printf("Compressed size:    %.2f MB\n", float64(stats["total_compressed_bytes"].(int64))/(1024*1024))
-	fmt.Printf("Avg compression:    %.2fx\n", stats["avg_compression_ratio"])
+	fmt.Printf("Stations:           %d\n", stats.StationCount)
+	fmt.Printf("Active stations:    %d\n", stats.ActiveStationCount)
+	fmt.Printf("Total chunks:       %d\n", stats.ChunkCount)
+	fmt.Printf("Total rows:         %d\n", stats.TotalRows)
+	fmt.Printf("Compressed size:    %.2f MB\n", float64(stats.TotalCompressedBytes)/(1024*1024))
+	fmt.Printf("Avg compression:    %.2fx\n", stats.AvgCompressionRatio)
 }
