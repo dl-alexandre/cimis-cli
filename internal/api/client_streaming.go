@@ -65,7 +65,7 @@ func NewOptimizedClient(appKey string) *OptimizedClient {
 			Transport: OptimizedHTTPTransport(),
 			Timeout:   streamingTimeout,
 		},
-		baseURL: "http://et.water.ca.gov/api/data",
+		baseURL: BaseURL,
 		bufferPool: sync.Pool{
 			New: func() interface{} {
 				return make([]byte, readBufferSize)
@@ -124,7 +124,7 @@ func (c *OptimizedClient) FetchDailyDataStreaming(stationID int, startDate, endD
 	params.Set("targets", strconv.Itoa(stationID))
 	params.Set("startDate", startDate)
 	params.Set("endDate", endDate)
-	params.Set("dataItems", "day-air-tmp-avg,day-asce-eto,day-wind-spd-avg,day-rel-hum-avg,day-sol-rad-avg,day-precip")
+	params.Set("dataItems", DailyDataItems)
 	params.Set("unitOfMeasure", "M")
 
 	requestURL := fmt.Sprintf("%s?%s", c.baseURL, params.Encode())
@@ -145,7 +145,7 @@ func (c *OptimizedClient) FetchDailyDataStreaming(stationID int, startDate, endD
 	dialStart := time.Now()
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, metrics, fmt.Errorf("failed to fetch data: %w", err)
+		return nil, metrics, fmt.Errorf("fetch streaming data for station %d (%s to %s): %w", stationID, startDate, endDate, err)
 	}
 	defer resp.Body.Close()
 
@@ -156,7 +156,7 @@ func (c *OptimizedClient) FetchDailyDataStreaming(stationID int, startDate, endD
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return nil, metrics, fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(body))
+		return nil, metrics, apiError(resp.StatusCode, stationID, startDate, endDate, body)
 	}
 
 	// Stream decode with bufio for reduced syscalls

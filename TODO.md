@@ -79,10 +79,10 @@ sibling repo, and contributors must manually set up the directory structure.
 are scattered across files. Centralizing them makes tuning and testing easier.
 
 **What:**
-- [ ] Create a `const` block or small config struct with:
-  - API base URL (currently hardcoded in `internal/api/client.go:19`)
-  - Epoch year (used in C layer and Go layer)
-  - Default buffer/pool sizes
+- [x] Create a `const` block with `BaseURL`, `DailyDataItems`, `HourlyDataItems`,
+      `EpochYear` and `Epoch` var in `internal/api/client.go`
+- [x] Replace duplicated API URL in `client_streaming.go` with shared `BaseURL`
+- [x] Replace hardcoded `1985` epoch in `query.go` with `api.Epoch`
 - [ ] Add `--base-url` flag to the CLI for testing against mock servers
 
 **Scope:** `internal/api/client.go`, `cmd/cimis/main.go`.
@@ -93,9 +93,10 @@ are scattered across files. Centralizing them makes tuning and testing easier.
 is wrong, the date range is empty, or the API returned an error.
 
 **What:**
-- [ ] Wrap errors with `fmt.Errorf("...: %w", err)` to build context chains
-- [ ] Include station ID, date range, and HTTP status in fetch errors
-- [ ] Add suggestions for common failure modes (invalid key, rate limit, no data)
+- [x] Wrap errors with `fmt.Errorf("...: %w", err)` to build context chains
+- [x] Include station ID, date range, and HTTP status in fetch errors
+- [x] Add suggestions for common failure modes (invalid key, rate limit, no data)
+      via `apiError()` helper with hints for 401/403, 429, and 5xx
 
 **Scope:** `internal/api/client.go`, `cmd/cimis/main.go`.
 
@@ -109,8 +110,9 @@ is wrong, the date range is empty, or the API returned an error.
 README. Users without a C compiler have no guidance.
 
 **What:**
-- [ ] Add a CI matrix entry that builds with `CGO_ENABLED=0`
-- [ ] Document the tradeoffs (pure Go vs CGO) in the README
+- [x] Add a CI matrix entry that builds with `CGO_ENABLED=0`
+- [x] Document the pure-Go build in the README
+- [x] Fix `make build-pure` (was using `CGO_ENABLED=1` by mistake)
 - [ ] Ensure the pure-Go path passes all tests
 
 **Scope:** `.github/workflows/ci.yml`, `README.md`.
@@ -122,11 +124,10 @@ README. Users without a C compiler have no guidance.
 material that could live in a `docs/` directory.
 
 **What:**
-- [ ] Move supplementary docs into `docs/` directory
-- [ ] Merge `DEPLOYMENT_READY.md` and `DEPLOYMENT_COMPLETE.md`
-- [ ] Link from README to docs rather than keeping everything top-level
-- [ ] Evaluate whether `OPTIMIZATION_SUMMARY.md` and `PRODUCTION_HARDENING.md`
-      should be combined into a single architecture/operations guide
+- [x] Move supplementary docs into `docs/` directory
+- [x] Merge `DEPLOYMENT_READY.md` and `DEPLOYMENT_COMPLETE.md` into `docs/deployment.md`
+- [x] Update `DOCS.md` as index linking to `docs/` files
+- [x] Link from README to docs
 
 **Scope:** Top-level markdown files, `README.md`.
 
@@ -140,7 +141,7 @@ material that could live in a `docs/` directory.
 | 1.2 | ~~Unit tests for API client~~ | ~~High~~ | Done |
 | 1.3 | ~~Unit tests for utilities~~ | ~~High~~ | Done |
 | 2.1 | Resolve `cimis-tsdb` dependency | Medium | Varies |
-| 2.2 | Centralize constants | Medium | Small |
-| 2.3 | Improve error context | Medium | Small |
-| 3.1 | Pure-Go build in CI | Low | Small |
-| 3.2 | Consolidate docs | Low | Small |
+| 2.2 | ~~Centralize constants~~ | ~~Medium~~ | Done |
+| 2.3 | ~~Improve error context~~ | ~~Medium~~ | Done |
+| 3.1 | ~~Pure-Go build in CI~~ | ~~Low~~ | Done |
+| 3.2 | ~~Consolidate docs~~ | ~~Low~~ | Done |

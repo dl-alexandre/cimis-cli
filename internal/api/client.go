@@ -15,9 +15,21 @@ import (
 )
 
 const (
-	// BaseURL is the CIMIS Web API endpoint
+	// BaseURL is the CIMIS Web API endpoint.
 	BaseURL = "http://et.water.ca.gov/api/data"
+
+	// DailyDataItems is the standard set of daily measurements requested from the API.
+	DailyDataItems = "day-air-tmp-avg,day-asce-eto,day-wind-spd-avg,day-rel-hum-avg,day-sol-rad-avg,day-precip"
+
+	// HourlyDataItems is the standard set of hourly measurements requested from the API.
+	HourlyDataItems = "hly-air-tmp,hly-asce-eto,hly-wind-spd,hly-wind-dir,hly-rel-hum,hly-sol-rad,hly-precip,hly-vap-pres"
+
+	// EpochYear is the base year for timestamp encoding (matches cimis-tsdb).
+	EpochYear = 1985
 )
+
+// Epoch is the reference time for timestamp calculations.
+var Epoch = time.Date(EpochYear, 1, 1, 0, 0, 0, 0, time.UTC)
 
 // Client handles requests to the CIMIS API.
 type Client struct {
@@ -139,31 +151,31 @@ func (c *Client) FetchDailyData(stationID int, startDate, endDate string) ([]*Da
 	params.Set("targets", strconv.Itoa(stationID))
 	params.Set("startDate", startDate)
 	params.Set("endDate", endDate)
-	params.Set("dataItems", "day-air-tmp-avg,day-asce-eto,day-wind-spd-avg,day-rel-hum-avg,day-sol-rad-avg,day-precip")
-	params.Set("unitOfMeasure", "M") // Metric units
+	params.Set("dataItems", DailyDataItems)
+	params.Set("unitOfMeasure", "M")
 
 	requestURL := fmt.Sprintf("%s?%s", c.baseURL, params.Encode())
 	fmt.Printf("Fetching: %s\n", requestURL)
 
 	resp, err := c.httpClient.Get(requestURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch data: %w", err)
+		return nil, fmt.Errorf("fetch daily data for station %d (%s to %s): %w", stationID, startDate, endDate, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(body))
+		return nil, apiError(resp.StatusCode, stationID, startDate, endDate, body)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
+		return nil, fmt.Errorf("read response for station %d: %w", stationID, err)
 	}
 
 	var apiResp APIResponse
 	if err := json.Unmarshal(body, &apiResp); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
+		return nil, fmt.Errorf("decode response for station %d: %w", stationID, err)
 	}
 
 	// Flatten records from all providers
@@ -182,31 +194,31 @@ func (c *Client) FetchHourlyData(stationID int, startDate, endDate string) ([]*H
 	params.Set("targets", strconv.Itoa(stationID))
 	params.Set("startDate", startDate)
 	params.Set("endDate", endDate)
-	params.Set("dataItems", "hly-air-tmp,hly-asce-eto,hly-wind-spd,hly-wind-dir,hly-rel-hum,hly-sol-rad,hly-precip,hly-vap-pres")
-	params.Set("unitOfMeasure", "M") // Metric units
+	params.Set("dataItems", HourlyDataItems)
+	params.Set("unitOfMeasure", "M")
 
 	requestURL := fmt.Sprintf("%s?%s", c.baseURL, params.Encode())
 	fmt.Printf("Fetching hourly: %s\n", requestURL)
 
 	resp, err := c.httpClient.Get(requestURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch data: %w", err)
+		return nil, fmt.Errorf("fetch hourly data for station %d (%s to %s): %w", stationID, startDate, endDate, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("API returned status %d: %s", resp.StatusCode, string(body))
+		return nil, apiError(resp.StatusCode, stationID, startDate, endDate, body)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
+		return nil, fmt.Errorf("read response for station %d: %w", stationID, err)
 	}
 
 	var apiResp HourlyAPIResponse
 	if err := json.Unmarshal(body, &apiResp); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
+		return nil, fmt.Errorf("decode response for station %d: %w", stationID, err)
 	}
 
 	// Flatten records from all providers
@@ -216,6 +228,23 @@ func (c *Client) FetchHourlyData(stationID int, startDate, endDate string) ([]*H
 	}
 
 	return records, nil
+}
+
+// apiError builds a descriptive error for non-OK API responses with suggestions.
+func apiError(statusCode, stationID int, startDate, endDate string, body []byte) error {
+	msg := fmt.Sprintf("API returned status %d for station %d (%s to %s)", statusCode, stationID, startDate, endDate)
+	if len(body) > 0 {
+		msg += ": " + string(body)
+	}
+	switch {
+	case statusCode == 401 || statusCode == 403:
+		msg += "\n  Hint: check that CIMIS_APP_KEY is set and valid"
+	case statusCode == 429:
+		msg += "\n  Hint: rate limited — reduce -concurrency or wait before retrying"
+	case statusCode >= 500:
+		msg += "\n  Hint: CIMIS server error — retry later"
+	}
+	return fmt.Errorf("%s", msg)
 }
 
 // ParseCIMISDate parses a CIMIS date string (MM/DD/YYYY) into time.Time.
