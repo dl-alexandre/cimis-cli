@@ -96,8 +96,8 @@ jobs:
     - name: Build
       run: go build -v ./...
 
-    - name: Build pure Go (no CGO)
-      run: CGO_ENABLED=0 go build -v ./cmd/cimis
+    - name: Build pure Go (API client only)
+      run: CGO_ENABLED=0 go build -v ./internal/api/...
       if: matrix.os == 'ubuntu-latest'
 
     - name: Run tests
