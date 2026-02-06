@@ -54,6 +54,11 @@ func (c *Client) SetHTTPClient(client *http.Client) {
 	c.httpClient = client
 }
 
+// SetBaseURL allows overriding the API base URL (for testing against mock servers).
+func (c *Client) SetBaseURL(baseURL string) {
+	c.baseURL = baseURL
+}
+
 // MeasurementValue represents a single measurement with value, QC code, and unit.
 type MeasurementValue struct {
 	Value string `json:"Value"`
