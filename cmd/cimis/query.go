@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/dl-alexandre/cimis-cli/internal/api"
 	"github.com/dl-alexandre/cimis-tsdb/metadata"
 	"github.com/dl-alexandre/cimis-tsdb/storage"
 	"github.com/dl-alexandre/cimis-tsdb/types"
@@ -113,14 +114,14 @@ func cmdQuery(dataDir string, args []string) {
 			}
 			// Filter by timestamp range
 			filterStart := time.Now()
-			startTs := uint32(start.Sub(time.Date(1985, 1, 1, 0, 0, 0, 0, time.UTC)).Hours())
-			endTs := uint32(end.Sub(time.Date(1985, 1, 1, 0, 0, 0, 0, time.UTC)).Hours())
+			startTs := uint32(start.Sub(api.Epoch).Hours())
+			endTs := uint32(end.Sub(api.Epoch).Hours())
 
 			for _, r := range records {
 				if r.Timestamp >= startTs && r.Timestamp < endTs {
 					totalRecords++
 					if totalRecords <= 10 {
-						ts := time.Date(1985, 1, 1, 0, 0, 0, 0, time.UTC).Add(time.Duration(r.Timestamp) * time.Hour)
+						ts := api.Epoch.Add(time.Duration(r.Timestamp) * time.Hour)
 						fmt.Printf("  %s: Temp=%.1f°C ET=%.2fmm Wind=%.1fm/s Humidity=%d%%\n",
 							ts.Format("2006-01-02 15:00"),
 							float64(r.Temperature)/10.0,
@@ -145,14 +146,14 @@ func cmdQuery(dataDir string, args []string) {
 			}
 			// Filter by timestamp range
 			filterStart := time.Now()
-			startTs := uint32(start.Sub(time.Date(1985, 1, 1, 0, 0, 0, 0, time.UTC)).Hours() / 24)
-			endTs := uint32(end.Sub(time.Date(1985, 1, 1, 0, 0, 0, 0, time.UTC)).Hours() / 24)
+			startTs := uint32(start.Sub(api.Epoch).Hours() / 24)
+			endTs := uint32(end.Sub(api.Epoch).Hours() / 24)
 
 			for _, r := range records {
 				if r.Timestamp >= startTs && r.Timestamp < endTs {
 					totalRecords++
 					if totalRecords <= 10 {
-						ts := time.Date(1985, 1, 1, 0, 0, 0, 0, time.UTC).Add(time.Duration(r.Timestamp) * 24 * time.Hour)
+						ts := api.Epoch.Add(time.Duration(r.Timestamp) * 24 * time.Hour)
 						fmt.Printf("  %s: Temp=%.1f°C ET=%.2fmm Wind=%.1fm/s Humidity=%d%%\n",
 							ts.Format("2006-01-02"),
 							float64(r.Temperature)/10.0,

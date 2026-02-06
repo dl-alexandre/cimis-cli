@@ -73,7 +73,7 @@ func cmdIngest(dataDir, appKey string, args []string) {
 	}
 
 	if len(records) == 0 {
-		fmt.Println("No records to ingest")
+		fmt.Printf("No records found for station %d, year %d. The station may not have data for this period.\n", *stationID, *year)
 		return
 	}
 
