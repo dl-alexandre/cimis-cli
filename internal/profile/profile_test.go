@@ -2,6 +2,7 @@ package profile
 
 import (
 	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
@@ -11,7 +12,7 @@ func TestProfiler(t *testing.T) {
 	t.Run("CPUProfile", func(t *testing.T) {
 		profiler := NewProfiler()
 
-		tmpFile := "/tmp/test_cpu_profile.prof"
+		tmpFile := filepath.Join(os.TempDir(), "test_cpu_profile.prof")
 		defer os.Remove(tmpFile)
 
 		if err := profiler.StartCPUProfile(tmpFile); err != nil {
@@ -40,7 +41,7 @@ func TestProfiler(t *testing.T) {
 	t.Run("HeapProfile", func(t *testing.T) {
 		profiler := NewProfiler()
 
-		tmpFile := "/tmp/test_heap_profile.prof"
+		tmpFile := filepath.Join(os.TempDir(), "test_heap_profile.prof")
 		defer os.Remove(tmpFile)
 
 		// Allocate some memory
