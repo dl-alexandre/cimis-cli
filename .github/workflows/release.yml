@@ -47,11 +47,6 @@ jobs:
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
 
-      - name: Update go.mod to use released cimis-tsdb
-        run: |
-          go mod edit -dropreplace github.com/dl-alexandre/cimis-tsdb
-          go mod tidy
-
       - name: Import Code Signing Certificate
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
