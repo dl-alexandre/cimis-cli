@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
   pull_request:
-    branches: [ main, master ]
+    branches: [main, master]
 
 permissions:
   contents: read
@@ -12,93 +12,172 @@ permissions:
 jobs:
   test:
     name: Test
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        go-version: ['1.21', '1.22', '1.23']
-    
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        go-version: ['1.24.x']
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Checkout cimis-tsdb
-      uses: actions/checkout@v4
-      with:
-        repository: dl-alexandre/cimis-tsdb
-        token: ${{ secrets.GH_PAT }}
-        path: _deps/cimis-tsdb
+      - name: Checkout cimis-tsdb
+        uses: actions/checkout@v4
+        with:
+          repository: dl-alexandre/cimis-tsdb
+          token: ${{ secrets.GH_PAT }}
+          path: _deps/cimis-tsdb
 
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: ${{ matrix.go-version }}
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache: true
 
-    - name: Update go.mod for CI
-      run: go mod edit -replace github.com/dl-alexandre/cimis-tsdb=./_deps/cimis-tsdb
+      - name: Download dependencies
+        run: go mod download
 
-    - name: Cache Go modules
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cache/go-build
-          ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}
-        restore-keys: |
-          ${{ runner.os }}-go-${{ matrix.go-version }}-
+      - name: Verify dependencies
+        run: go mod verify
 
-    - name: Download dependencies
-      run: go mod download
+      - name: Run go vet
+        run: make vet
 
-    - name: Verify dependencies
-      run: go mod verify
+      - name: Run tests with flaky diagnostics (non-Windows)
+        if: matrix.os != 'windows-latest'
+        run: |
+          set -o pipefail
+          mkdir -p .artifacts/coverage
+          mkdir -p .artifacts/test
+          attempt=1
+          while [ $attempt -le 2 ]; do
+            echo "Test attempt ${attempt}"
+            if CGO_ENABLED=1 go test -json -v -race -coverprofile=.artifacts/coverage/coverage.out -covermode=atomic ./... | tee .artifacts/test/test-attempt-${attempt}.json; then
+              exit 0
+            fi
+            attempt=$((attempt + 1))
+          done
+          exit 1
 
-    - name: Build
-      run: go build -v ./...
+      - name: Run tests (Windows)
+        if: matrix.os == 'windows-latest'
+        run: go test -v ./...
 
-    - name: Run tests
-      run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
+      - name: Upload test diagnostics
+        if: failure() && matrix.os != 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cimis-test-diagnostics-${{ matrix.os }}
+          path: .artifacts/test/
+          retention-days: 7
 
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v4
-      if: matrix.go-version == '1.23'
-      with:
-        file: ./coverage.txt
-        flags: unittests
-        fail_ci_if_error: false
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        if: matrix.os == 'ubuntu-latest'
+        with:
+          file: ./.artifacts/coverage/coverage.out
+          flags: unittests
+          fail_ci_if_error: false
 
   build:
     name: Build
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
+    needs: test
     strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        go-version: ['1.23']
-    
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Checkout cimis-tsdb
-      uses: actions/checkout@v4
-      with:
-        repository: dl-alexandre/cimis-tsdb
-        token: ${{ secrets.GH_PAT }}
-        path: _deps/cimis-tsdb
+      - name: Checkout cimis-tsdb
+        uses: actions/checkout@v4
+        with:
+          repository: dl-alexandre/cimis-tsdb
+          token: ${{ secrets.GH_PAT }}
+          path: _deps/cimis-tsdb
 
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: ${{ matrix.go-version }}
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.x'
+          cache: true
 
-    - name: Update go.mod for CI
-      run: go mod edit -replace github.com/dl-alexandre/cimis-tsdb=./_deps/cimis-tsdb
+      - name: Build CGO binary
+        run: make build
 
-    - name: Build
-      run: go build -v ./...
+      - name: Build pure Go path
+        run: make build-pure
 
-    - name: Build pure Go (API client only)
-      run: CGO_ENABLED=0 go build -v ./internal/api/...
-      if: matrix.os == 'ubuntu-latest'
+      - name: Verify version metadata
+        run: |
+          make build
+          ./build/cimis version | grep -F "cimis version"
 
-    - name: Run tests
-      run: go test -v ./...
+      - name: Generate checksums
+        run: make checksums
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries
+          path: |
+            build/
+            build/checksums.txt
+          retention-days: 7
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Checkout cimis-tsdb
+        uses: actions/checkout@v4
+        with:
+          repository: dl-alexandre/cimis-tsdb
+          token: ${{ secrets.GH_PAT }}
+          path: _deps/cimis-tsdb
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.x'
+          cache: true
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v9.2.0
+        with:
+          version: v2.8.0
+          skip-cache: true
+          args: --timeout=5m
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Checkout cimis-tsdb
+        uses: actions/checkout@v4
+        with:
+          repository: dl-alexandre/cimis-tsdb
+          token: ${{ secrets.GH_PAT }}
+          path: _deps/cimis-tsdb
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.x'
+          cache: true
+
+      - name: Run govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...

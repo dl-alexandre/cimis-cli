@@ -1,4 +1,4 @@
-.PHONY: all build clean test bench fmt vet c-lib
+.PHONY: all build build-pure clean test bench fmt vet lint security checksums version c-lib deps
 
 # Build settings
 BINARY_NAME=cimis
@@ -55,10 +55,30 @@ vet:
 	CGO_CFLAGS="-I$(PWD)/$(C_DIR)" CGO_LDFLAGS="-L$(PWD)/$(C_DIR) -lcimis_storage" \
 		$(GO) vet ./...
 
+lint:
+	@if command -v golangci-lint >/dev/null 2>&1; then \
+		golangci-lint run ./...; \
+	else \
+		echo "golangci-lint not installed. Run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest"; \
+	fi
+
+security:
+	@if command -v govulncheck >/dev/null 2>&1; then \
+		govulncheck ./...; \
+	else \
+		echo "govulncheck not installed. Run: go install golang.org/x/vuln/cmd/govulncheck@latest"; \
+	fi
+
 # Development helpers
 dev:
 	CGO_ENABLED=$(CGO_ENABLED) CGO_CFLAGS="-I$(PWD)/$(C_DIR)" CGO_LDFLAGS="-L$(PWD)/$(C_DIR) -lcimis_storage" \
 		$(GO) run ./cmd/cimis
+
+checksums:
+	@cd $(BUILD_DIR) && shasum -a 256 $(BINARY_NAME)* > checksums.txt
+
+version: build
+	@./$(BUILD_DIR)/$(BINARY_NAME) version
 
 # Download dependencies
 deps:

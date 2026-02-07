@@ -26,6 +26,12 @@ cd cimis-cli
 make build
 ```
 
+Dependency note:
+
+- This repository expects `cimis-tsdb` at `./_deps/cimis-tsdb` (see `go.mod` replace rule).
+- CI checks out the dependency into that path.
+- Local development should mirror the same layout for deterministic builds.
+
 For a **pure-Go build** (no C compiler required):
 
 ```bash

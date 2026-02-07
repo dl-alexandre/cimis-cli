@@ -40,9 +40,6 @@ jobs:
           go-version-file: 'go.mod'
           cache: true
 
-      - name: Update go.mod for CI
-        run: go mod edit -replace github.com/dl-alexandre/cimis-tsdb=./_deps/cimis-tsdb
-
       - name: Get version
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
@@ -57,7 +54,7 @@ jobs:
         run: |
           mkdir -p dist
 
-          LDFLAGS="-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.buildTime=${DATE}"
+          LDFLAGS="-s -w -X main.Version=${VERSION} -X main.BuildTime=${DATE}"
 
           GOOS=darwin GOARCH=arm64 go build -ldflags="${LDFLAGS}" -o dist/${APP_NAME}-darwin-arm64 ./cmd/${APP_NAME}
           codesign --sign - --timestamp --options runtime dist/${APP_NAME}-darwin-arm64
@@ -72,6 +69,11 @@ jobs:
           GOOS=windows GOARCH=amd64 go build -ldflags="${LDFLAGS}" -o dist/${APP_NAME}-windows-amd64.exe ./cmd/${APP_NAME}
 
           GOOS=windows GOARCH=arm64 go build -ldflags="${LDFLAGS}" -o dist/${APP_NAME}-windows-arm64.exe ./cmd/${APP_NAME}
+
+      - name: Verify version metadata
+        run: |
+          go build -ldflags="-X main.Version=${{ steps.version.outputs.VERSION }} -X main.BuildTime=${{ github.event.head_commit.timestamp }}" -o /tmp/${APP_NAME}-verify ./cmd/${APP_NAME}
+          /tmp/${APP_NAME}-verify version | grep -F "${{ steps.version.outputs.VERSION }}"
 
       - name: Create Arch Linux PKGBUILD
         env:
