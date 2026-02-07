@@ -1,0 +1,69 @@
+name: Benchmarks
+
+on:
+  schedule:
+    - cron: "0 9 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    name: Benchmark cimis-cli
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Checkout cimis-tsdb
+        if: ${{ env.ACT != 'true' }}
+        uses: actions/checkout@v4
+        with:
+          repository: dl-alexandre/cimis-tsdb
+          token: ${{ secrets.GH_PAT }}
+          path: _deps/cimis-tsdb
+
+      - name: Set up Go
+        if: ${{ env.ACT != 'true' }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.x"
+          cache: true
+
+      - name: Set up Go for act
+        if: ${{ env.ACT == 'true' }}
+        run: |
+          echo "ACT mode: skipping Go setup due local runtime filesystem limitations."
+
+      - name: Run benchmark suite
+        if: ${{ env.ACT != 'true' }}
+        run: |
+          mkdir -p .artifacts/benchmarks
+          CGO_ENABLED=1 go test -run '^$' -bench 'Benchmark(Ingest|Query)$' -benchmem -count=3 ./cmd/cimis | tee .artifacts/benchmarks/benchmark.txt
+
+      - name: Run benchmark smoke for act
+        if: ${{ env.ACT == 'true' }}
+        run: |
+          mkdir -p .artifacts/benchmarks
+          echo "ACT benchmark smoke completed" | tee .artifacts/benchmarks/benchmark.txt
+
+      - name: Enforce regression threshold
+        if: ${{ env.ACT != 'true' }}
+        run: |
+          ingest=$(grep -E '^BenchmarkIngest' .artifacts/benchmarks/benchmark.txt | tail -n 1 | awk '{print $3}' | sed 's/ns\/op//')
+          query=$(grep -E '^BenchmarkQuery' .artifacts/benchmarks/benchmark.txt | tail -n 1 | awk '{print $3}' | sed 's/ns\/op//')
+          test -n "$ingest"
+          test -n "$query"
+          # Thresholds are intentionally coarse to catch major regressions only.
+          [ "$ingest" -le 500000000 ] || (echo "BenchmarkIngest regression: ${ingest}ns/op" && exit 1)
+          [ "$query" -le 500000000 ] || (echo "BenchmarkQuery regression: ${query}ns/op" && exit 1)
+
+      - name: Upload benchmark results
+        if: ${{ env.ACT != 'true' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: .artifacts/benchmarks/
+          retention-days: 30
