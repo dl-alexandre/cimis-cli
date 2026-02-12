@@ -42,3 +42,5 @@ Thumbs.db
 /tmp/
 *.tmp
 .artifacts/
+c/cimis_storage.o
+c/libcimis_storage.a
