@@ -43,12 +43,16 @@ jobs:
         run: go mod verify
 
       - name: Build C library
+        shell: bash
         run: |
-          cd c && make -f Makefile.ci 2>/dev/null || \
-          (which gcc && gcc -c -O2 -fPIC cimis_storage.c -o cimis_storage.o && ar rcs libcimis_storage.a cimis_storage.o) || \
-          echo "No C compiler available, will use build-pure"
+          if command -v gcc >/dev/null 2>&1; then
+            cd c && gcc -c -O2 -fPIC cimis_storage.c -o cimis_storage.o && ar rcs libcimis_storage.a cimis_storage.o
+          else
+            echo "No C compiler available, will use build-pure"
+          fi
 
       - name: Run go vet
+        shell: bash
         run: |
           if [ -f c/libcimis_storage.a ]; then
             make vet
