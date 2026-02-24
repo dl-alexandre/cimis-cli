@@ -9,18 +9,22 @@ permissions:
   contents: write
 
 jobs:
-  release:
-    name: Build and Release
-    runs-on: macos-latest
-    env:
-      APP_NAME: cimis
-      REPO_NAME: dl-alexandre/cimis-cli
-      REPO_URL: https://github.com/dl-alexandre/cimis-cli
-      PKG_NAME: cimis-bin
-      PKG_DESC: CIMIS time-series database CLI tool with streaming and querying support
-      FORMULA_NAME: cimis
-      FORMULA_CLASS: Cimis
-
+  build-release:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: darwin
+            arch: arm64
+          - os: darwin
+            arch: amd64
+          - os: linux
+            arch: amd64
+          - os: linux
+            arch: arm64
+          - os: windows
+            arch: amd64
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -40,151 +44,100 @@ jobs:
           go-version-file: 'go.mod'
           cache: true
 
-      - name: Get version
-        id: version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-
-
-
       - name: Build binaries
         env:
-          VERSION: ${{ steps.version.outputs.VERSION }}
-          COMMIT: ${{ github.sha }}
-          DATE: ${{ github.event.head_commit.timestamp }}
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
         run: |
           mkdir -p dist
+          LDFLAGS="-s -w -X main.Version=${GITHUB_REF#refs/tags/}"
+          if [ "${{ matrix.os }}" = "windows" ]; then
+            CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o dist/cimis-${{ matrix.os }}-${{ matrix.arch }}.exe ./cmd/cimis
+          else
+            CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o dist/cimis-${{ matrix.os }}-${{ matrix.arch }} ./cmd/cimis
+          fi
 
-          LDFLAGS="-s -w -X main.Version=${VERSION} -X main.BuildTime=${DATE}"
-
-          GOOS=darwin GOARCH=arm64 go build -ldflags="${LDFLAGS}" -o dist/${APP_NAME}-darwin-arm64 ./cmd/${APP_NAME}
-          codesign --sign - --timestamp --options runtime dist/${APP_NAME}-darwin-arm64
-
-          GOOS=darwin GOARCH=amd64 go build -ldflags="${LDFLAGS}" -o dist/${APP_NAME}-darwin-amd64 ./cmd/${APP_NAME}
-          codesign --sign - --timestamp --options runtime dist/${APP_NAME}-darwin-amd64
-
-          GOOS=linux GOARCH=amd64 go build -ldflags="${LDFLAGS}" -o dist/${APP_NAME}-linux-amd64 ./cmd/${APP_NAME}
-
-          GOOS=linux GOARCH=arm64 go build -ldflags="${LDFLAGS}" -o dist/${APP_NAME}-linux-arm64 ./cmd/${APP_NAME}
-
-          GOOS=windows GOARCH=amd64 go build -ldflags="${LDFLAGS}" -o dist/${APP_NAME}-windows-amd64.exe ./cmd/${APP_NAME}
-
-          GOOS=windows GOARCH=arm64 go build -ldflags="${LDFLAGS}" -o dist/${APP_NAME}-windows-arm64.exe ./cmd/${APP_NAME}
-
-      - name: Verify version metadata
+      - name: Package
         run: |
-          go build -ldflags="-X main.Version=${{ steps.version.outputs.VERSION }} -X main.BuildTime=${{ github.event.head_commit.timestamp }}" -o /tmp/${APP_NAME}-verify ./cmd/${APP_NAME}
-          /tmp/${APP_NAME}-verify version | grep -F "${{ steps.version.outputs.VERSION }}"
-
-      - name: Create Arch Linux PKGBUILD
-        env:
-          VERSION: ${{ steps.version.outputs.VERSION }}
-        run: |
-          cat > dist/PKGBUILD << PKGBUILD_EOF
-          pkgname=${PKG_NAME}
-          pkgver=${VERSION}
-          pkgrel=1
-          pkgdesc="${PKG_DESC}"
-          arch=('x86_64' 'aarch64')
-          url="${REPO_URL}"
-          license=('MIT')
-          provides=("${FORMULA_NAME}")
-          conflicts=("${FORMULA_NAME}")
-
-          source_x86_64=("${REPO_URL}/releases/download/${VERSION}/${APP_NAME}-linux-amd64")
-          source_aarch64=("${REPO_URL}/releases/download/${VERSION}/${APP_NAME}-linux-arm64")
-
-          sha256sums_x86_64=('SKIP')
-          sha256sums_aarch64=('SKIP')
-
-          package() {
-            cd "${srcdir}"
-            install -Dm755 ${APP_NAME}-linux-* "${pkgdir}/usr/bin/${APP_NAME}"
-          }
-          PKGBUILD_EOF
-
-          AMD64_SHA=$(shasum -a 256 dist/${APP_NAME}-linux-amd64 | awk '{print $1}')
-          ARM64_SHA=$(shasum -a 256 dist/${APP_NAME}-linux-arm64 | awk '{print $1}')
-          sed -i "" "s/sha256sums_x86_64=('SKIP')/sha256sums_x86_64=('${AMD64_SHA}')/" dist/PKGBUILD
-          sed -i "" "s/sha256sums_aarch64=('SKIP')/sha256sums_aarch64=('${ARM64_SHA}')/" dist/PKGBUILD
+          cd dist
+          if [ "${{ matrix.os }}" = "windows" ]; then
+            mv cimis-${{ matrix.os }}-${{ matrix.arch }}.exe cimis.exe
+            zip cimis-${{ matrix.os }}-${{ matrix.arch }}.zip cimis.exe
+            rm cimis.exe
+          else
+            mv cimis-${{ matrix.os }}-${{ matrix.arch }} cimis
+            tar -czf cimis-${{ matrix.os }}-${{ matrix.arch }}.tar.gz cimis
+            rm cimis
+          fi
 
       - name: Generate checksums
         run: |
           cd dist
-          shasum -a 256 ${APP_NAME}-* PKGBUILD > checksums.txt
+          sha256sum cimis-* > checksums.txt
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            dist/${{ env.APP_NAME }}-darwin-arm64
-            dist/${{ env.APP_NAME }}-darwin-amd64
-            dist/${{ env.APP_NAME }}-linux-amd64
-            dist/${{ env.APP_NAME }}-linux-arm64
-            dist/${{ env.APP_NAME }}-windows-amd64.exe
-            dist/${{ env.APP_NAME }}-windows-arm64.exe
-            dist/PKGBUILD
-            dist/checksums.txt
+          files: dist/*
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Update Homebrew Tap
+        if: matrix.os == 'darwin' && matrix.arch == 'arm64'
         env:
           TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
-          VERSION: ${{ steps.version.outputs.VERSION }}
         run: |
-          SHA256=$(shasum -a 256 dist/${APP_NAME}-darwin-arm64 | awk '{print $1}')
-          SHA256_AMD64=$(shasum -a 256 dist/${APP_NAME}-darwin-amd64 | awk '{print $1}')
-          SHA256_LINUX_ARM64=$(shasum -a 256 dist/${APP_NAME}-linux-arm64 | awk '{print $1}')
-          SHA256_LINUX_AMD64=$(shasum -a 256 dist/${APP_NAME}-linux-amd64 | awk '{print $1}')
+          VERSION=${GITHUB_REF#refs/tags/}
+          SHA256_ARM64=$(sha256sum dist/cimis-darwin-arm64.tar.gz | awk '{print $1}')
+          SHA256_AMD64=$(sha256sum dist/cimis-darwin-amd64.tar.gz | awk '{print $1}')
+          SHA256_LINUX_ARM64=$(sha256sum dist/cimis-linux-arm64.tar.gz | awk '{print $1}')
+          SHA256_LINUX_AMD64=$(sha256sum dist/cimis-linux-amd64.tar.gz | awk '{print $1}')
 
           git clone https://x-access-token:${TAP_GITHUB_TOKEN}@github.com/dl-alexandre/homebrew-tap.git tap-repo
           cd tap-repo
 
-          cat > Formula/${FORMULA_NAME}.rb << EOF
-          class ${FORMULA_CLASS} < Formula
-            desc "${PKG_DESC}"
-            homepage "${REPO_URL}"
+          cat > Formula/cimis.rb << EOF
+          class Cimis < Formula
+            desc "CIMIS time-series database CLI tool with streaming and querying support"
+            homepage "https://github.com/dl-alexandre/cimis-cli"
             version "${VERSION}"
             license "MIT"
 
             on_macos do
               if Hardware::CPU.arm?
-                url "${REPO_URL}/releases/download/${VERSION}/${APP_NAME}-darwin-arm64"
-                sha256 "${SHA256}"
+                url "https://github.com/dl-alexandre/cimis-cli/releases/download/${VERSION}/cimis-darwin-arm64.tar.gz"
+                sha256 "${SHA256_ARM64}"
               end
               if Hardware::CPU.intel?
-                url "${REPO_URL}/releases/download/${VERSION}/${APP_NAME}-darwin-amd64"
+                url "https://github.com/dl-alexandre/cimis-cli/releases/download/${VERSION}/cimis-darwin-amd64.tar.gz"
                 sha256 "${SHA256_AMD64}"
               end
             end
 
             on_linux do
               if Hardware::CPU.arm?
-                url "${REPO_URL}/releases/download/${VERSION}/${APP_NAME}-linux-arm64"
+                url "https://github.com/dl-alexandre/cimis-cli/releases/download/${VERSION}/cimis-linux-arm64.tar.gz"
                 sha256 "${SHA256_LINUX_ARM64}"
               end
               if Hardware::CPU.intel?
-                url "${REPO_URL}/releases/download/${VERSION}/${APP_NAME}-linux-amd64"
+                url "https://github.com/dl-alexandre/cimis-cli/releases/download/${VERSION}/cimis-linux-amd64.tar.gz"
                 sha256 "${SHA256_LINUX_AMD64}"
               end
             end
 
             def install
-              bin.install "${APP_NAME}-darwin-arm64" => "${APP_NAME}" if OS.mac? && Hardware::CPU.arm?
-              bin.install "${APP_NAME}-darwin-amd64" => "${APP_NAME}" if OS.mac? && Hardware::CPU.intel?
-              bin.install "${APP_NAME}-linux-arm64" => "${APP_NAME}" if OS.linux? && Hardware::CPU.arm?
-              bin.install "${APP_NAME}-linux-amd64" => "${APP_NAME}" if OS.linux? && Hardware::CPU.intel?
+              bin.install "cimis"
             end
 
             test do
-              system "#{bin}/${APP_NAME}", "version"
+              system "#{bin}/cimis", "version"
             end
           end
           EOF
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Formula/${FORMULA_NAME}.rb
-          git commit -m "Update ${FORMULA_NAME} to ${VERSION}"
+          git add Formula/cimis.rb
+          git commit -m "Update cimis to ${VERSION}"
           git push

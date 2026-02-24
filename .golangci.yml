@@ -1,0 +1,43 @@
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  default: none
+  enable:
+    # Baseline "industry standard" Go checks.
+    - govet
+    - staticcheck
+    - errcheck
+    - ineffassign
+    - unused
+    - misspell
+    - unparam
+    - errorlint
+
+  settings:
+    misspell:
+      # Words used intentionally in CLI context.
+      ignore-rules:
+        - cancelled
+        - cancelling
+
+  exclusions:
+    rules:
+      # Note: errcheck disabled due to widespread unchecked error patterns
+      # (Close, Setenv, RemoveAll, etc.) that would require massive refactoring
+      - linters: [errcheck]
+        text: "Error return value"
+      # Pre-existing issues that would require significant refactoring
+      - linters: [ineffassign]
+        text: "ineffectual assignment"
+      - linters: [staticcheck]
+        text: "SA4003:"
+      - linters: [staticcheck]
+        text: "ST1005:"
+      - linters: [unparam]
+        text: "is unused"
+      - linters: [unused]
+        text: "is unused"
