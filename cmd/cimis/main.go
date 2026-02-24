@@ -12,6 +12,8 @@ import (
 var (
 	// Version is set during build
 	Version = "dev"
+	// GitCommit is set during build
+	GitCommit = "unknown"
 	// BuildTime is set during build
 	BuildTime = "unknown"
 )
@@ -65,7 +67,7 @@ func main() {
 	// Subcommands
 	switch os.Args[1] {
 	case "version":
-		fmt.Printf("cimis version %s (built %s)\n", Version, BuildTime)
+		fmt.Printf("cimis %s (%s) built %s\n", Version, GitCommit, BuildTime)
 
 	case "init":
 		cmdInit(*dataDir)
@@ -95,6 +97,15 @@ func main() {
 	case "profile":
 		cmdProfile(*dataDir, os.Args[2:])
 
+	case "register":
+		cmdRegister()
+
+	case "login":
+		cmdLogin()
+
+	case "api-docs":
+		cmdAPI()
+
 	default:
 		fmt.Fprintf(os.Stderr, "Unknown command: %s\n", os.Args[1])
 		printUsage()
@@ -115,6 +126,9 @@ Commands:
   stats            Show database statistics
   verify           Verify chunk integrity
   profile          CPU, memory, and performance profiling
+  register         Open CIMIS registration page in browser
+  login            Open CIMIS login page in browser
+  api-docs         Open CIMIS API documentation in browser
 
 Global Options:
   -data-dir string    Data directory (default: ./data)
@@ -136,6 +150,15 @@ Examples:
    # Query June 2020 data
    cimis query -station 2 -start 2020-06-01 -end 2020-06-30
 
-   # Query with caching and performance metrics
-   cimis query -station 2 -start 2020-06-01 -end 2020-06-30 -cache 100MB -perf`)
+    # Query with caching and performance metrics
+    cimis query -station 2 -start 2020-06-01 -end 2020-06-30 -cache 100MB -perf
+
+    # Open CIMIS registration page to get API key
+    cimis register
+
+    # Open CIMIS login page
+    cimis login
+
+    # Open CIMIS API documentation
+    cimis api-docs`)
 }

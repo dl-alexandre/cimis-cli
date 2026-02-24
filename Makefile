@@ -1,4 +1,4 @@
-.PHONY: all build build-pure clean test bench fmt vet lint security checksums version c-lib deps
+.PHONY: all build build-pure clean test bench fmt vet lint security checksums version c-lib deps format install-hooks
 
 # Build settings
 BINARY_NAME=cimis
@@ -13,8 +13,9 @@ C_LIB=$(C_DIR)/libcimis_storage.a
 
 # Version info
 VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+GIT_COMMIT=$(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 BUILD_TIME=$(shell date -u '+%Y-%m-%d_%H:%M:%S')
-LDFLAGS=-ldflags "-X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME)"
+LDFLAGS=-ldflags "-X main.Version=$(VERSION) -X main.GitCommit=$(GIT_COMMIT) -X main.BuildTime=$(BUILD_TIME)"
 
 all: build
 
@@ -84,3 +85,18 @@ version: build
 deps:
 	$(GO) mod download
 	$(GO) mod tidy
+
+# Format code (alias for existing fmt)
+format: fmt
+	@if command -v goimports >/dev/null 2>&1; then \
+		goimports -w .; \
+	else \
+		echo "goimports not installed. Install: go install golang.org/x/tools/cmd/goimports@latest"; \
+	fi
+
+# Install git hooks
+install-hooks:
+	@echo "Installing git hooks..."
+	@git config core.hooksPath .githooks
+	@echo "Hooks installed from .githooks/"
+
