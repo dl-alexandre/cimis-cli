@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  build-release:
+  build:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -70,6 +70,24 @@ jobs:
             rm cimis
           fi
 
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cimis-${{ matrix.os }}-${{ matrix.arch }}
+          path: dist/*
+          retention-days: 1
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: cimis-*
+          merge-multiple: true
+
       - name: Generate checksums
         run: |
           cd dist
@@ -84,7 +102,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Update Homebrew Tap
-        if: matrix.os == 'darwin' && matrix.arch == 'arm64'
         env:
           TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
         run: |
