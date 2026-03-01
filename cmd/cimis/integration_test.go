@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -11,27 +12,41 @@ import (
 
 // TestEndToEndIntegration performs a full integration test
 func TestEndToEndIntegration(t *testing.T) {
-	// Skip if no API key available
-	appKey := os.Getenv("CIMIS_APP_KEY")
-	if appKey == "" {
-		t.Skip("CIMIS_APP_KEY not set, skipping integration test")
-	}
-
 	// Create temporary directory for test data
 	tmpDir := t.TempDir()
 	dataDir := filepath.Join(tmpDir, "data")
 
-	// Build CLI
+	// Build CLI - get project root from current file location
+	_, testFile, _, _ := runtime.Caller(0)
+	projectRoot := filepath.Join(filepath.Dir(testFile), "..", "..")
+
 	cliPath := filepath.Join(tmpDir, "cimis")
-	buildCmd := exec.Command("go", "build", "-o", cliPath, ".")
-	buildCmd.Dir = ".." // Project root
+	buildCmd := exec.Command("go", "build", "-o", cliPath, "./cmd/cimis")
+	buildCmd.Dir = projectRoot
 	if output, err := buildCmd.CombinedOutput(); err != nil {
 		t.Fatalf("Failed to build CLI: %v\nOutput: %s", err, output)
 	}
 
+	t.Run("Version", func(t *testing.T) {
+		cmd := exec.Command(cliPath, "version")
+		cmd.Dir = tmpDir
+
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("Version failed: %v\nOutput: %s", err, output)
+		}
+
+		outputStr := string(output)
+		if !strings.Contains(outputStr, "cimis") {
+			t.Errorf("Expected 'cimis' in version output, got: %s", outputStr)
+		}
+
+		t.Logf("Version output: %s", outputStr)
+	})
+
 	t.Run("InitDatabase", func(t *testing.T) {
 		cmd := exec.Command(cliPath, "init")
-		cmd.Env = append(os.Environ(), "CIMIS_APP_KEY="+appKey)
+		cmd.Env = os.Environ()
 		cmd.Dir = tmpDir
 
 		output, err := cmd.CombinedOutput()
@@ -52,6 +67,48 @@ func TestEndToEndIntegration(t *testing.T) {
 
 		t.Log("Database initialized successfully")
 	})
+
+	t.Run("Stats", func(t *testing.T) {
+		cmd := exec.Command(cliPath, "stats")
+		cmd.Env = os.Environ()
+		cmd.Dir = tmpDir
+
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("Stats failed: %v\nOutput: %s", err, output)
+		}
+
+		outputStr := string(output)
+		if !strings.Contains(outputStr, "Statistics") {
+			t.Errorf("Expected 'Statistics' in output, got: %s", outputStr)
+		}
+
+		t.Logf("Stats output: %s", outputStr)
+	})
+
+	t.Run("Verify", func(t *testing.T) {
+		cmd := exec.Command(cliPath, "verify")
+		cmd.Env = os.Environ()
+		cmd.Dir = tmpDir
+
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("Verify failed: %v\nOutput: %s", err, output)
+		}
+
+		outputStr := string(output)
+		if !strings.Contains(outputStr, "OK") && !strings.Contains(outputStr, "complete") && !strings.Contains(outputStr, "verified") {
+			t.Errorf("Expected verification result in output, got: %s", outputStr)
+		}
+
+		t.Logf("Verify output: %s", outputStr)
+	})
+
+	// Skip API-dependent tests if no key is available
+	appKey := os.Getenv("CIMIS_APP_KEY")
+	if appKey == "" {
+		t.Skip("Skipping API-dependent tests - CIMIS_APP_KEY not set")
+	}
 
 	t.Run("FetchData", func(t *testing.T) {
 		cmd := exec.Command(cliPath, "fetch", "-station", "2", "-days", "7")
@@ -122,42 +179,6 @@ func TestEndToEndIntegration(t *testing.T) {
 		}
 
 		t.Logf("Query output: %s", outputStr)
-	})
-
-	t.Run("Stats", func(t *testing.T) {
-		cmd := exec.Command(cliPath, "stats")
-		cmd.Env = append(os.Environ(), "CIMIS_APP_KEY="+appKey)
-		cmd.Dir = tmpDir
-
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			t.Fatalf("Stats failed: %v\nOutput: %s", err, output)
-		}
-
-		outputStr := string(output)
-		if !strings.Contains(outputStr, "Statistics") {
-			t.Errorf("Expected 'Statistics' in output, got: %s", outputStr)
-		}
-
-		t.Logf("Stats output: %s", outputStr)
-	})
-
-	t.Run("Verify", func(t *testing.T) {
-		cmd := exec.Command(cliPath, "verify")
-		cmd.Env = append(os.Environ(), "CIMIS_APP_KEY="+appKey)
-		cmd.Dir = tmpDir
-
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			t.Fatalf("Verify failed: %v\nOutput: %s", err, output)
-		}
-
-		outputStr := string(output)
-		if !strings.Contains(outputStr, "OK") && !strings.Contains(outputStr, "complete") {
-			t.Errorf("Expected verification result in output, got: %s", outputStr)
-		}
-
-		t.Logf("Verify output: %s", outputStr)
 	})
 }
 

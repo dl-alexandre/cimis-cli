@@ -1,10 +1,16 @@
-.PHONY: all build build-pure clean test bench fmt vet lint security checksums version c-lib deps format install-hooks
+.PHONY: all build build-pure clean test test-pure bench fmt vet lint security checksums version c-lib deps format install-hooks setup
 
 # Build settings
 BINARY_NAME=cimis
 BUILD_DIR=./build
 GO=go
 CGO_ENABLED=1
+
+# macOS linker flag to suppress duplicate library warnings
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+    CGO_LDFLAGS_EXTRA=-Wl,-no_warn_duplicate_libraries
+endif
 
 # C Library settings
 C_DIR=./c
@@ -28,7 +34,7 @@ $(C_LIB): $(C_DIR)/cimis_storage.c $(C_DIR)/cimis_storage.h
 # Build Go binary with C library
 build: $(C_LIB)
 	@mkdir -p $(BUILD_DIR)
-	CGO_ENABLED=$(CGO_ENABLED) CGO_CFLAGS="-I$(PWD)/$(C_DIR)" CGO_LDFLAGS="-L$(PWD)/$(C_DIR) -lcimis_storage" \
+	CGO_ENABLED=$(CGO_ENABLED) CGO_CFLAGS="-I$(PWD)/$(C_DIR)" CGO_LDFLAGS="-L$(PWD)/$(C_DIR) -lcimis_storage $(CGO_LDFLAGS_EXTRA)" \
 		$(GO) build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/cimis
 
 # Build without C library (pure Go, no C compiler required)
@@ -42,18 +48,26 @@ clean:
 	@$(GO) clean
 
 test:
-	CGO_CFLAGS="-I$(PWD)/$(C_DIR)" CGO_LDFLAGS="-L$(PWD)/$(C_DIR) -lcimis_storage" \
+	CGO_CFLAGS="-I$(PWD)/$(C_DIR)" CGO_LDFLAGS="-L$(PWD)/$(C_DIR) -lcimis_storage $(CGO_LDFLAGS_EXTRA)" \
 		$(GO) test -v ./...
 
+# Run tests without CGO (pure Go, no C compiler required)
+test-pure:
+	CGO_ENABLED=0 $(GO) test -v ./internal/api/... ./internal/profile/...
+
+# Setup development environment
+setup:
+	@./scripts/setup.sh
+
 bench:
-	CGO_CFLAGS="-I$(PWD)/$(C_DIR)" CGO_LDFLAGS="-L$(PWD)/$(C_DIR) -lcimis_storage" \
+	CGO_CFLAGS="-I$(PWD)/$(C_DIR)" CGO_LDFLAGS="-L$(PWD)/$(C_DIR) -lcimis_storage $(CGO_LDFLAGS_EXTRA)" \
 		$(GO) test -bench=. -benchmem ./internal/...
 
 fmt:
 	$(GO) fmt ./...
 
 vet:
-	CGO_CFLAGS="-I$(PWD)/$(C_DIR)" CGO_LDFLAGS="-L$(PWD)/$(C_DIR) -lcimis_storage" \
+	CGO_CFLAGS="-I$(PWD)/$(C_DIR)" CGO_LDFLAGS="-L$(PWD)/$(C_DIR) -lcimis_storage $(CGO_LDFLAGS_EXTRA)" \
 		$(GO) vet ./...
 
 lint:
@@ -72,7 +86,7 @@ security:
 
 # Development helpers
 dev:
-	CGO_ENABLED=$(CGO_ENABLED) CGO_CFLAGS="-I$(PWD)/$(C_DIR)" CGO_LDFLAGS="-L$(PWD)/$(C_DIR) -lcimis_storage" \
+	CGO_ENABLED=$(CGO_ENABLED) CGO_CFLAGS="-I$(PWD)/$(C_DIR)" CGO_LDFLAGS="-L$(PWD)/$(C_DIR) -lcimis_storage $(CGO_LDFLAGS_EXTRA)" \
 		$(GO) run ./cmd/cimis
 
 checksums:
