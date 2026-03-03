@@ -1,5 +1,7 @@
 # CIMIS CLI Tool
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/dl-alexandre/cimis-cli)](https://goreportcard.com/report/github.com/dl-alexandre/cimis-cli)
+
 A command-line tool for fetching, storing, and querying California Irrigation Management Information System (CIMIS) weather data.
 
 Built on top of the [cimis-tsdb](https://github.com/dl-alexandre/cimis-tsdb) high-performance time-series storage library.

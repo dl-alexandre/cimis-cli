@@ -1,4 +1,4 @@
-.PHONY: all build build-pure clean test test-pure bench fmt vet lint security checksums version c-lib deps format install-hooks setup
+.PHONY: all build build-pure clean test test-pure bench fmt vet lint security checksums version c-lib deps format install-hooks setup check
 
 # Build settings
 BINARY_NAME=cimis
@@ -95,10 +95,16 @@ checksums:
 version: build
 	@./$(BUILD_DIR)/$(BINARY_NAME) version
 
+# Run all checks (format, vet, lint, test)
+.PHONY: check
+check: format vet lint test
+
 # Download dependencies
+.PHONY: deps
 deps:
 	$(GO) mod download
 	$(GO) mod tidy
+	$(GO) mod verify
 
 # Format code (alias for existing fmt)
 format: fmt
