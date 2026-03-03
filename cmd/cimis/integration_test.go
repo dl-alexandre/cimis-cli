@@ -20,7 +20,12 @@ func TestEndToEndIntegration(t *testing.T) {
 	_, testFile, _, _ := runtime.Caller(0)
 	projectRoot := filepath.Join(filepath.Dir(testFile), "..", "..")
 
-	cliPath := filepath.Join(tmpDir, "cimis")
+	// Use platform-appropriate executable name
+	exeName := "cimis"
+	if runtime.GOOS == "windows" {
+		exeName = "cimis.exe"
+	}
+	cliPath := filepath.Join(tmpDir, exeName)
 	buildCmd := exec.Command("go", "build", "-o", cliPath, "./cmd/cimis")
 	buildCmd.Dir = projectRoot
 	if output, err := buildCmd.CombinedOutput(); err != nil {
