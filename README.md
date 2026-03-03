@@ -31,6 +31,7 @@ Dependency note:
 - This repository expects `cimis-tsdb` at `./_deps/cimis-tsdb` (see `go.mod` replace rule).
 - CI checks out the dependency into that path.
 - Local development should mirror the same layout for deterministic builds.
+- Now supports Linux, macOS, and Windows (cross-platform file locking)
 
 For a **pure-Go build** (no C compiler required):
 
