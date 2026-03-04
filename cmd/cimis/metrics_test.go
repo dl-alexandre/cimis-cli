@@ -25,11 +25,11 @@ func TestAllocMetricsString(t *testing.T) {
 
 func TestClassifyRetryableError(t *testing.T) {
 	tests := []struct {
-		name        string
-		err         error
-		statusCode  int
-		wantRetry   bool
-		wantNil     bool
+		name       string
+		err        error
+		statusCode int
+		wantRetry  bool
+		wantNil    bool
 	}{
 		{"nil error", nil, 0, false, true},
 

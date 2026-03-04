@@ -12,8 +12,8 @@ func TestParseCacheSize(t *testing.T) {
 		// Gigabytes
 		{"1GB", 1 * 1024 * 1024 * 1024},
 		{"1.5GB", int64(1.5 * 1024 * 1024 * 1024)},
-		{"2gb", 2 * 1024 * 1024 * 1024},     // case insensitive
-		{" 1GB ", 1 * 1024 * 1024 * 1024},   // whitespace
+		{"2gb", 2 * 1024 * 1024 * 1024},   // case insensitive
+		{" 1GB ", 1 * 1024 * 1024 * 1024}, // whitespace
 
 		// Megabytes
 		{"100MB", 100 * 1024 * 1024},
@@ -31,8 +31,8 @@ func TestParseCacheSize(t *testing.T) {
 		// Invalid
 		{"", 0},
 		{"abc", 0},
-		{"MB", 0},        // no number
-		{"10XB", 0},      // unknown suffix
+		{"MB", 0},                  // no number
+		{"10XB", 0},                // unknown suffix
 		{"-1MB", -1 * 1024 * 1024}, // negative values pass through ParseFloat
 	}
 
@@ -79,9 +79,9 @@ func TestParseStationList(t *testing.T) {
 
 		// Errors
 		{"abc", nil, true},
-		{"1-2-3", nil, true},   // invalid range
-		{"1-abc", nil, true},   // invalid range end
-		{"abc-5", nil, true},   // invalid range start
+		{"1-2-3", nil, true}, // invalid range
+		{"1-abc", nil, true}, // invalid range end
+		{"abc-5", nil, true}, // invalid range start
 	}
 
 	for _, tt := range tests {

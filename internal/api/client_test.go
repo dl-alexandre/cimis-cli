@@ -120,23 +120,23 @@ func TestHasQCFlag(t *testing.T) {
 
 func TestParseDateYYYYMMDD(t *testing.T) {
 	tests := []struct {
-		input              string
+		input                        string
 		wantYear, wantMonth, wantDay int
-		wantOK             bool
+		wantOK                       bool
 	}{
 		{"2024-01-15", 2024, 1, 15, true},
 		{"1985-01-01", 1985, 1, 1, true},
 		{"2099-12-31", 2099, 12, 31, true},
 		{"", 0, 0, 0, false},
 		{"short", 0, 0, 0, false},
-		{"2024/01/15", 0, 0, 0, false},   // wrong separator
-		{"20240115xx", 0, 0, 0, false},    // wrong length ok but wrong format
-		{"1984-01-01", 0, 0, 0, false},   // before epoch
-		{"2101-01-01", 0, 0, 0, false},   // after 2100
-		{"2024-13-01", 0, 0, 0, false},   // invalid month
-		{"2024-00-01", 0, 0, 0, false},   // month 0
-		{"2024-01-00", 0, 0, 0, false},   // day 0
-		{"2024-01-32", 0, 0, 0, false},   // day 32
+		{"2024/01/15", 0, 0, 0, false}, // wrong separator
+		{"20240115xx", 0, 0, 0, false}, // wrong length ok but wrong format
+		{"1984-01-01", 0, 0, 0, false}, // before epoch
+		{"2101-01-01", 0, 0, 0, false}, // after 2100
+		{"2024-13-01", 0, 0, 0, false}, // invalid month
+		{"2024-00-01", 0, 0, 0, false}, // month 0
+		{"2024-01-00", 0, 0, 0, false}, // day 0
+		{"2024-01-32", 0, 0, 0, false}, // day 32
 	}
 
 	for _, tt := range tests {
@@ -183,9 +183,9 @@ func TestDaysSinceEpoch(t *testing.T) {
 func TestConvertDailyToRecords(t *testing.T) {
 	apiRecords := []*DailyDataRecord{
 		{
-			Date:         "2024-06-15",
-			DayAirTmpAvg: &MeasurementValue{Value: "25.3", Qc: " "},
-			DayAsceEto:   &MeasurementValue{Value: "5.2", Qc: " "},
+			Date:          "2024-06-15",
+			DayAirTmpAvg:  &MeasurementValue{Value: "25.3", Qc: " "},
+			DayAsceEto:    &MeasurementValue{Value: "5.2", Qc: " "},
 			DayWindSpdAvg: &MeasurementValue{Value: "3.1", Qc: " "},
 			DayRelHumAvg:  &MeasurementValue{Value: "65", Qc: " "},
 			DaySolRadAvg:  &MeasurementValue{Value: "2.5", Qc: " "},
@@ -478,9 +478,9 @@ func TestFetchHourlyDataHTTP(t *testing.T) {
 func TestConvertMinimalDailyToRecords(t *testing.T) {
 	minRecords := []MinimalDailyRecord{
 		{
-			Date:         "2024-06-15",
-			DayAirTmpAvg: &MinimalMeasurementValue{Value: 25.3, Qc: " "},
-			DayAsceEto:   &MinimalMeasurementValue{Value: 5.2, Qc: " "},
+			Date:          "2024-06-15",
+			DayAirTmpAvg:  &MinimalMeasurementValue{Value: 25.3, Qc: " "},
+			DayAsceEto:    &MinimalMeasurementValue{Value: 5.2, Qc: " "},
 			DayWindSpdAvg: &MinimalMeasurementValue{Value: 3.1, Qc: " "},
 			DayRelHumAvg:  &MinimalMeasurementValue{Value: 65.0, Qc: " "},
 			DaySolRadAvg:  &MinimalMeasurementValue{Value: 2.5, Qc: " "},
