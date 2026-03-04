@@ -7,15 +7,17 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/dl-alexandre/cimis-cli/internal/cli"
 )
 
 var (
-	// Version is set during build
-	Version = "dev"
-	// GitCommit is set during build
-	GitCommit = "unknown"
-	// BuildTime is set during build
-	BuildTime = "unknown"
+	// Version is set during build and exported from cli package
+	Version = cli.Version
+	// GitCommit is set during build and exported from cli package
+	GitCommit = cli.GitCommit
+	// BuildTime is set during build and exported from cli package
+	BuildTime = cli.BuildTime
 )
 
 // parseCacheSize parses cache size strings like "100MB", "1GB" to bytes.
@@ -55,6 +57,9 @@ func parseCacheSize(sizeStr string) int64 {
 }
 
 func main() {
+	// Start automatic update check in background (non-blocking)
+	cli.AutoUpdateCheck()
+
 	if len(os.Args) < 2 {
 		printUsage()
 		os.Exit(1)
@@ -68,6 +73,21 @@ func main() {
 	switch os.Args[1] {
 	case "version":
 		fmt.Printf("cimis %s (%s) built %s\n", Version, GitCommit, BuildTime)
+
+	case "check-updates":
+		force := false
+		format := "table"
+		for i := 2; i < len(os.Args); i++ {
+			if os.Args[i] == "-force" || os.Args[i] == "--force" {
+				force = true
+			} else if os.Args[i] == "-json" || os.Args[i] == "--json" {
+				format = "json"
+			}
+		}
+		if err := cli.CheckForUpdates(force, format); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
 
 	case "init":
 		cmdInit(*dataDir)
@@ -118,10 +138,12 @@ func printUsage() {
 
 Commands:
   version          Show version information
+  check-updates    Check for available updates
   init             Initialize database directories and metadata
   fetch            Fetch data from CIMIS API (DEPRECATED: use fetch-streaming)
   fetch-streaming  Fetch with optimized streaming + detailed metrics
   ingest           Fetch and store using streaming (production default)
+  ingest-opt       Fetch and store using optimized streaming
   query            Query stored data
   stats            Show database statistics
   verify           Verify chunk integrity
@@ -135,6 +157,12 @@ Global Options:
   -app-key string     CIMIS API app key (or CIMIS_APP_KEY env var)
 
 Examples:
+   # Check for updates
+   cimis check-updates
+
+   # Force check for updates (bypass cache)
+   cimis check-updates -force
+
    # Initialize database
    cimis init
 
@@ -150,15 +178,15 @@ Examples:
    # Query June 2020 data
    cimis query -station 2 -start 2020-06-01 -end 2020-06-30
 
-    # Query with caching and performance metrics
-    cimis query -station 2 -start 2020-06-01 -end 2020-06-30 -cache 100MB -perf
+   # Query with caching and performance metrics
+   cimis query -station 2 -start 2020-06-01 -end 2020-06-30 -cache 100MB -perf
 
-    # Open CIMIS registration page to get API key
-    cimis register
+   # Open CIMIS registration page to get API key
+   cimis register
 
-    # Open CIMIS login page
-    cimis login
+   # Open CIMIS login page
+   cimis login
 
-    # Open CIMIS API documentation
-    cimis api-docs`)
+   # Open CIMIS API documentation
+   cimis api-docs`)
 }
