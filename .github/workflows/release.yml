@@ -16,6 +16,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Checkout cimis-tsdb dependency
+        uses: actions/checkout@v6
+        with:
+          repository: dl-alexandre/cimis-tsdb
+          path: _deps/cimis-tsdb
+
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
