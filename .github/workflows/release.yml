@@ -9,152 +9,28 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: darwin
-            arch: arm64
-          - os: darwin
-            arch: amd64
-          - os: linux
-            arch: amd64
-          - os: linux
-            arch: arm64
-          - os: windows
-            arch: amd64
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - name: Checkout cimis-tsdb
-        uses: actions/checkout@v4
-        with:
-          repository: dl-alexandre/cimis-tsdb
-          token: ${{ secrets.GH_PAT }}
-          path: _deps/cimis-tsdb
-
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: 'go.mod'
-          cache: true
 
-      - name: Build binaries
-        env:
-          GOOS: ${{ matrix.os }}
-          GOARCH: ${{ matrix.arch }}
-        run: |
-          mkdir -p dist
-          LDFLAGS="-s -w -X main.Version=${GITHUB_REF#refs/tags/}"
-          if [ "${{ matrix.os }}" = "windows" ]; then
-            CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o dist/cimis-${{ matrix.os }}-${{ matrix.arch }}.exe ./cmd/cimis
-          else
-            CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o dist/cimis-${{ matrix.os }}-${{ matrix.arch }} ./cmd/cimis
-          fi
+      - name: Run tests
+        run: go test ./...
 
-      - name: Package
-        run: |
-          cd dist
-          if [ "${{ matrix.os }}" = "windows" ]; then
-            mv cimis-${{ matrix.os }}-${{ matrix.arch }}.exe cimis.exe
-            zip cimis-${{ matrix.os }}-${{ matrix.arch }}.zip cimis.exe
-            rm cimis.exe
-          else
-            mv cimis-${{ matrix.os }}-${{ matrix.arch }} cimis
-            tar -czf cimis-${{ matrix.os }}-${{ matrix.arch }}.tar.gz cimis
-            rm cimis
-          fi
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v7
         with:
-          name: cimis-${{ matrix.os }}-${{ matrix.arch }}
-          path: dist/*
-          retention-days: 1
-
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: dist
-          pattern: cimis-*
-          merge-multiple: true
-
-      - name: Generate checksums
-        run: |
-          cd dist
-          sha256sum cimis-* > checksums.txt
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: dist/*
-          generate_release_notes: true
+          distribution: goreleaser
+          version: '~> v2'
+          args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Update Homebrew Tap
-        env:
-          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/}
-          SHA256_ARM64=$(sha256sum dist/cimis-darwin-arm64.tar.gz | awk '{print $1}')
-          SHA256_AMD64=$(sha256sum dist/cimis-darwin-amd64.tar.gz | awk '{print $1}')
-          SHA256_LINUX_ARM64=$(sha256sum dist/cimis-linux-arm64.tar.gz | awk '{print $1}')
-          SHA256_LINUX_AMD64=$(sha256sum dist/cimis-linux-amd64.tar.gz | awk '{print $1}')
-
-          git clone https://x-access-token:${TAP_GITHUB_TOKEN}@github.com/dl-alexandre/homebrew-tap.git tap-repo
-          cd tap-repo
-
-          cat > Formula/cimis.rb << EOF
-          class Cimis < Formula
-            desc "CIMIS time-series database CLI tool with streaming and querying support"
-            homepage "https://github.com/dl-alexandre/cimis-cli"
-            version "${VERSION}"
-            license "MIT"
-
-            on_macos do
-              if Hardware::CPU.arm?
-                url "https://github.com/dl-alexandre/cimis-cli/releases/download/${VERSION}/cimis-darwin-arm64.tar.gz"
-                sha256 "${SHA256_ARM64}"
-              end
-              if Hardware::CPU.intel?
-                url "https://github.com/dl-alexandre/cimis-cli/releases/download/${VERSION}/cimis-darwin-amd64.tar.gz"
-                sha256 "${SHA256_AMD64}"
-              end
-            end
-
-            on_linux do
-              if Hardware::CPU.arm?
-                url "https://github.com/dl-alexandre/cimis-cli/releases/download/${VERSION}/cimis-linux-arm64.tar.gz"
-                sha256 "${SHA256_LINUX_ARM64}"
-              end
-              if Hardware::CPU.intel?
-                url "https://github.com/dl-alexandre/cimis-cli/releases/download/${VERSION}/cimis-linux-amd64.tar.gz"
-                sha256 "${SHA256_LINUX_AMD64}"
-              end
-            end
-
-            def install
-              bin.install "cimis"
-            end
-
-            test do
-              system "#{bin}/cimis", "version"
-            end
-          end
-          EOF
-
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add Formula/cimis.rb
-          git commit -m "Update cimis to ${VERSION}"
-          git push
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
