@@ -21,7 +21,7 @@ jobs:
         with:
           repository: dl-alexandre/cimis-tsdb
           path: _deps/cimis-tsdb
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.CI_PAT }}
 
       - name: Set up Go
         uses: actions/setup-go@v6
