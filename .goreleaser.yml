@@ -1,5 +1,3 @@
-# GoReleaser configuration
-# Documentation: https://goreleaser.com
 
 version: 2
 
@@ -46,7 +44,7 @@ archives:
 
 checksum:
   name_template: "checksums.txt"
-  algorithm: sha256
+  algorithm: blake3
 
 changelog:
   sort: asc
@@ -80,10 +78,9 @@ release:
     ### Verification
     Verify checksums:
     ```bash
-    sha256sum -c checksums.txt
+    b3sum -c checksums.txt
     ```
 
-# Homebrew tap configuration
 brews:
   - name: cimis
     repository:
@@ -95,7 +92,7 @@ brews:
         enabled: false
     commit_author:
       name: goreleaserbot
-      email: goreleaser@carlosbecker.com
+      email: bot@dl-alexandre.com
     commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
     directory: Formula
     description: "CLI for California Irrigation Management Information System (CIMIS) weather data"
@@ -107,7 +104,21 @@ brews:
     install: |
       bin.install "cimis"
 
-# Scoop configuration for Windows
+flatpak:
+  - app_id: net.ddns.dl-alexandre.CIMISCLI
+    runtime: org.freedesktop.Platform
+    runtime_version: "24.08"
+    sdk: org.freedesktop.Sdk
+    finish_args:
+      - --share=network
+      - --filesystem=home
+
+srpm:
+  enabled: true
+  summary: "CLI for California Irrigation Management Information System (CIMIS) weather data"
+  license: MIT
+  url: https://github.com/dl-alexandre/cimis-cli
+
 scoops:
   - repository:
       owner: dl-alexandre
@@ -118,7 +129,7 @@ scoops:
         enabled: false
     commit_author:
       name: goreleaserbot
-      email: goreleaser@carlosbecker.com
+      email: bot@dl-alexandre.com
     commit_msg_template: "Scoop update for {{ .ProjectName }} version {{ .Tag }}"
     directory: bucket
     description: "CLI for California Irrigation Management Information System (CIMIS) weather data"
