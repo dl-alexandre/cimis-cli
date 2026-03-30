@@ -9,15 +9,16 @@ import (
 	"strings"
 
 	"github.com/dl-alexandre/cimis-cli/internal/cli"
+	cliver "github.com/dl-alexandre/cli-tools/version"
 )
 
 var (
-	// Version is set during build and exported from cli package
-	Version = cli.Version
-	// GitCommit is set during build and exported from cli package
-	GitCommit = cli.GitCommit
-	// BuildTime is set during build and exported from cli package
-	BuildTime = cli.BuildTime
+	// Version is set during build via ldflags
+	version = "dev"
+	// GitCommit is set during build via ldflags
+	gitCommit = "unknown"
+	// BuildTime is set during build via ldflags
+	buildTime = "unknown"
 )
 
 // parseCacheSize parses cache size strings like "100MB", "1GB" to bytes.
@@ -57,6 +58,12 @@ func parseCacheSize(sizeStr string) int64 {
 }
 
 func main() {
+	// Set version info in cli-tools
+	cliver.Version = version
+	cliver.GitCommit = gitCommit
+	cliver.BuildTime = buildTime
+	cliver.BinaryName = "cimis"
+
 	// Start automatic update check in background (non-blocking)
 	cli.AutoUpdateCheck()
 
@@ -72,7 +79,7 @@ func main() {
 	// Subcommands
 	switch os.Args[1] {
 	case "version":
-		fmt.Printf("cimis %s (%s) built %s\n", Version, GitCommit, BuildTime)
+		fmt.Printf("cimis %s (%s) built %s\n", cliver.Version, cliver.GitCommit, cliver.BuildTime)
 
 	case "check-updates":
 		force := false
@@ -84,6 +91,8 @@ func main() {
 				format = "json"
 			}
 		}
+		_ = force
+		_ = format
 		if err := cli.CheckForUpdates(force, format); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)

@@ -2,7 +2,10 @@ module github.com/dl-alexandre/cimis-cli
 
 go 1.25.0
 
-require github.com/dl-alexandre/cimis-tsdb v0.0.0
+require (
+	github.com/dl-alexandre/cimis-tsdb v0.0.0
+	github.com/dl-alexandre/cli-tools v0.0.1
+)
 
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
