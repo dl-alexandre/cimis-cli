@@ -1,4 +1,3 @@
-// Main entry point for the cimis CLI.
 package main
 
 import (
@@ -12,56 +11,8 @@ import (
 	cliver "github.com/dl-alexandre/cli-tools/version"
 )
 
-var (
-	// Version is set during build via ldflags
-	version = "dev"
-	// GitCommit is set during build via ldflags
-	gitCommit = "unknown"
-	// BuildTime is set during build via ldflags
-	buildTime = "unknown"
-)
-
-// parseCacheSize parses cache size strings like "100MB", "1GB" to bytes.
-// Returns the size in bytes, or 0 if parsing fails.
-func parseCacheSize(sizeStr string) int64 {
-	if sizeStr == "" {
-		return 0
-	}
-
-	sizeStr = strings.TrimSpace(sizeStr)
-	sizeStr = strings.ToUpper(sizeStr)
-
-	// Try to parse with suffix
-	if strings.HasSuffix(sizeStr, "GB") {
-		numStr := strings.TrimSuffix(sizeStr, "GB")
-		if num, err := strconv.ParseFloat(numStr, 64); err == nil {
-			return int64(num * 1024 * 1024 * 1024)
-		}
-	} else if strings.HasSuffix(sizeStr, "MB") {
-		numStr := strings.TrimSuffix(sizeStr, "MB")
-		if num, err := strconv.ParseFloat(numStr, 64); err == nil {
-			return int64(num * 1024 * 1024)
-		}
-	} else if strings.HasSuffix(sizeStr, "KB") {
-		numStr := strings.TrimSuffix(sizeStr, "KB")
-		if num, err := strconv.ParseFloat(numStr, 64); err == nil {
-			return int64(num * 1024)
-		}
-	} else {
-		// Try to parse as plain bytes
-		if num, err := strconv.ParseInt(sizeStr, 10, 64); err == nil {
-			return num
-		}
-	}
-
-	return 0
-}
-
 func main() {
-	// Set version info in cli-tools
-	cliver.Version = version
-	cliver.GitCommit = gitCommit
-	cliver.BuildTime = buildTime
+	// Binary name is always cimis
 	cliver.BinaryName = "cimis"
 
 	// Start automatic update check in background (non-blocking)
