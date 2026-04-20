@@ -36,6 +36,10 @@ jobs:
           go-version: ${{ matrix.go-version }}
           cache: true
 
+      - name: Configure git for private repos
+        run: |
+          git config --global url."https://x-access-token:${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
+
       - name: Download dependencies
         run: go mod download
 
@@ -117,6 +121,10 @@ jobs:
           go-version: '1.25.x'
           cache: true
 
+      - name: Configure git for private repos
+        run: |
+          git config --global url."https://x-access-token:${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
+
       - name: Ensure pure-Go sqlite dependency is available
         run: go mod download modernc.org/sqlite
 
@@ -165,6 +173,10 @@ jobs:
           go-version: '1.25.x'
           cache: true
 
+      - name: Configure git for private repos
+        run: |
+          git config --global url."https://x-access-token:${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
+
       - name: Run golangci-lint
         continue-on-error: true
         uses: golangci/golangci-lint-action@v9.2.0
@@ -193,6 +205,10 @@ jobs:
         with:
           go-version: '1.25.x'
           cache: true
+
+      - name: Configure git for private repos
+        run: |
+          git config --global url."https://x-access-token:${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
 
       - name: Run security scan
         run: make security
