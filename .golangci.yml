@@ -37,6 +37,8 @@ linters:
         text: "SA4003:"
       - linters: [staticcheck]
         text: "ST1005:"
+      - linters: [staticcheck]
+        text: "QF1003:"
       - linters: [unparam]
         text: "is unused"
       - linters: [unused]
