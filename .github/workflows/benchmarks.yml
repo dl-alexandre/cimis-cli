@@ -1,0 +1,56 @@
+name: Benchmarks
+
+on:
+  schedule:
+    - cron: "0 9 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    name: Benchmark cimis-cli
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Checkout cimis-tsdb
+        uses: actions/checkout@v4
+        with:
+          repository: dl-alexandre/cimis-tsdb
+          token: ${{ secrets.GH_PAT }}
+          path: _deps/cimis-tsdb
+
+      - name: Configure git for private repos
+        run: |
+          git config --global url."https://${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.x"
+          cache: true
+
+      - name: Run benchmark suite
+        run: |
+          mkdir -p .artifacts/benchmarks
+          CGO_ENABLED=1 go test -run '^$' -bench 'Benchmark(Ingest|Query)$' -benchmem -count=3 ./cmd/cimis | tee .artifacts/benchmarks/benchmark.txt
+
+      - name: Enforce regression threshold
+        run: |
+          ingest=$(grep -E '^BenchmarkIngest' .artifacts/benchmarks/benchmark.txt | tail -n 1 | awk '{print $3}' | sed 's/ns\/op//')
+          query=$(grep -E '^BenchmarkQuery' .artifacts/benchmarks/benchmark.txt | tail -n 1 | awk '{print $3}' | sed 's/ns\/op//')
+          test -n "$ingest"
+          test -n "$query"
+          [ "$ingest" -le 500000000 ] || (echo "BenchmarkIngest regression: ${ingest}ns/op" && exit 1)
+          [ "$query" -le 500000000 ] || (echo "BenchmarkQuery regression: ${query}ns/op" && exit 1)
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: .artifacts/benchmarks/
+          retention-days: 30
