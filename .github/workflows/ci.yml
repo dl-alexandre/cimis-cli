@@ -125,8 +125,8 @@ jobs:
         run: |
           git config --global url."https://x-access-token:${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
 
-      - name: Ensure pure-Go sqlite dependency is available
-        run: go mod download modernc.org/sqlite
+      - name: Download dependencies
+        run: go mod download
 
       - name: Build CGO binary
         run: make build
