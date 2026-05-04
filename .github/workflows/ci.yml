@@ -21,17 +21,17 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Checkout cimis-tsdb
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: dl-alexandre/cimis-tsdb
           token: ${{ secrets.GH_PAT }}
           path: _deps/cimis-tsdb
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: ${{ matrix.go-version }}
           cache: true
@@ -86,14 +86,14 @@ jobs:
 
       - name: Upload test diagnostics
         if: failure() && matrix.os != 'windows-latest'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cimis-test-diagnostics-${{ matrix.os }}
           path: .artifacts/test/
           retention-days: 7
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v6
         if: matrix.os == 'ubuntu-latest'
         with:
           file: ./.artifacts/coverage/coverage.out
@@ -106,17 +106,17 @@ jobs:
     needs: test
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Checkout cimis-tsdb
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: dl-alexandre/cimis-tsdb
           token: ${{ secrets.GH_PAT }}
           path: _deps/cimis-tsdb
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: '1.25.x'
           cache: true
@@ -143,7 +143,7 @@ jobs:
         run: make checksums
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: binaries
           path: |
@@ -158,17 +158,17 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Checkout cimis-tsdb
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: dl-alexandre/cimis-tsdb
           token: ${{ secrets.GH_PAT }}
           path: _deps/cimis-tsdb
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: '1.25.x'
           cache: true
@@ -191,17 +191,17 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Checkout cimis-tsdb
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: dl-alexandre/cimis-tsdb
           token: ${{ secrets.GH_PAT }}
           path: _deps/cimis-tsdb
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: '1.25.x'
           cache: true
