@@ -8,6 +8,6 @@ require (
 )
 
 require (
-	github.com/klauspost/compress v1.17.11 // indirect
-	github.com/mattn/go-sqlite3 v1.14.22 // indirect
+	github.com/klauspost/compress v1.18.6 // indirect
+	github.com/mattn/go-sqlite3 v1.14.44 // indirect
 )
