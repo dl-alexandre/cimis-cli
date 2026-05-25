@@ -178,7 +178,7 @@ jobs:
 
       - name: Run golangci-lint
         continue-on-error: true
-        uses: golangci/golangci-lint-action@v9.2.0
+        uses: golangci/golangci-lint-action@v9.2.1
         with:
           version: v2.8.0
           skip-cache: true
