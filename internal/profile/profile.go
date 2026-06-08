@@ -4,6 +4,7 @@ package profile
 import (
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -138,13 +139,8 @@ func StartPProfServer(addr string) *http.Server {
 	}
 
 	go func() {
-		fmt.Printf("Starting pprof server on %s\n", addr)
-		fmt.Printf("  CPU profile: curl http://%s/debug/pprof/profile\n", addr)
-		fmt.Printf("  Heap: curl http://%s/debug/pprof/heap\n", addr)
-		fmt.Printf("  Goroutines: curl http://%s/debug/pprof/goroutine\n", addr)
-		fmt.Printf("  Allocs: curl http://%s/debug/pprof/allocs\n", addr)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			fmt.Printf("pprof server error: %v\n", err)
+			log.Printf("pprof server error: %v", err)
 		}
 	}()
 

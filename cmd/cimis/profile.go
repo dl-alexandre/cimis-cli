@@ -52,6 +52,10 @@ func runProfile(dataDir string, args []string) error {
 	if *server != "" {
 		pprofServer := profile.StartPProfServer(*server)
 		fmt.Printf("pprof server started on %s\n", *server)
+		fmt.Printf("  CPU profile: curl http://%s/debug/pprof/profile\n", *server)
+		fmt.Printf("  Heap: curl http://%s/debug/pprof/heap\n", *server)
+		fmt.Printf("  Goroutines: curl http://%s/debug/pprof/goroutine\n", *server)
+		fmt.Printf("  Allocs: curl http://%s/debug/pprof/allocs\n", *server)
 		fmt.Println("Press Ctrl+C to stop...")
 
 		// Wait for interrupt
