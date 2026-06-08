@@ -1,8 +1,12 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestAllocMetricsString(t *testing.T) {
@@ -132,5 +136,63 @@ func TestVerifyAtomicWrite(t *testing.T) {
 	// Non-existent file
 	if VerifyAtomicWrite("/nonexistent/path/file.dat") {
 		t.Error("expected false for non-existent file")
+	}
+
+	emptyFile := filepath.Join(t.TempDir(), "empty.dat")
+	if err := os.WriteFile(emptyFile, nil, 0644); err != nil {
+		t.Fatalf("WriteFile empty: %v", err)
+	}
+	if VerifyAtomicWrite(emptyFile) {
+		t.Error("expected false for empty file")
+	}
+
+	nonEmptyFile := filepath.Join(t.TempDir(), "chunk.dat")
+	if err := os.WriteFile(nonEmptyFile, []byte("data"), 0644); err != nil {
+		t.Fatalf("WriteFile non-empty: %v", err)
+	}
+	if !VerifyAtomicWrite(nonEmptyFile) {
+		t.Error("expected true for non-empty file")
+	}
+}
+
+func TestCaptureAllocMetrics(t *testing.T) {
+	stop := CaptureAllocMetrics()
+	data := make([]byte, 1024)
+	for i := range data {
+		data[i] = byte(i)
+	}
+
+	metrics := stop()
+	if metrics.AfterAlloc == 0 {
+		t.Fatal("expected AfterAlloc to be populated")
+	}
+	if metrics.AfterHeap == 0 {
+		t.Fatal("expected AfterHeap to be populated")
+	}
+}
+
+func TestPrintJSONResults(t *testing.T) {
+	output := captureStdout(t, func() {
+		PrintJSONResults([]JSONStationResult{
+			{StationID: 2, Year: 2024, Success: true, Records: 10, Timings: Timings{Total: time.Second}},
+			{StationID: 3, Year: 2024, Success: false, Error: "boom"},
+		}, time.Second)
+	})
+
+	var summary JSONOutputSummary
+	if err := json.Unmarshal([]byte(output), &summary); err != nil {
+		t.Fatalf("PrintJSONResults output was not JSON: %v\n%s", err, output)
+	}
+	if summary.TotalStations != 2 {
+		t.Errorf("TotalStations = %d, want 2", summary.TotalStations)
+	}
+	if summary.Successful != 1 {
+		t.Errorf("Successful = %d, want 1", summary.Successful)
+	}
+	if summary.Failed != 1 {
+		t.Errorf("Failed = %d, want 1", summary.Failed)
+	}
+	if summary.TotalRecords != 10 {
+		t.Errorf("TotalRecords = %d, want 10", summary.TotalRecords)
 	}
 }

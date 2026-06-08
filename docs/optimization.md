@@ -326,7 +326,7 @@ if err == storage.ErrV2NotFound {
 4. Benchmark and switch
 
 ### 3. Date Format Consistency
-**Issue:** `ParseCIMISDate` expects `MM/DD/YYYY` but conversion uses `YYYY-MM-DD`.
+**Resolved:** `ParseCIMISDate` accepts `YYYY-MM-DD` API dates and legacy `MM/DD/YYYY` CLI input, while `FormatCIMISDate` emits `YYYY-MM-DD`.
 
 **Resolution:** Added manual parser that handles `YYYY-MM-DD` directly (what API actually returns based on usage).
 

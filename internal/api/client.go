@@ -3,20 +3,38 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/dl-alexandre/cimis-tsdb/types"
 )
 
 const (
-	// BaseURL is the CIMIS Web API endpoint.
-	BaseURL = "http://et.water.ca.gov/api/data"
+	// BaseURL is the CIMIS Web API host.
+	BaseURL = "https://et.water.ca.gov"
+
+	// SubscriptionKeyHeader is the CIMIS API key header used by the current DWR API.
+	SubscriptionKeyHeader = "Ocp-Apim-Subscription-Key"
+
+	stationDataByNumberPath      = "/StationWeb/GetDataByStationNumber"
+	stationDataByZipCodePath     = "/StationWeb/GetDataByStationZipCodes"
+	spatialDataByCoordinatesPath = "/SpatialWeb/GetDataBySpatialCoordinates"
+	spatialDataByAddressesPath   = "/SpatialWeb/GetDataByAddresses"
+	spatialDataByZipCodePath     = "/SpatialWeb/GetDataBySpatialZipCodes"
+	geoStationDataByZipCodePath  = "/GeoStationWeb/GetDataByGeoStationZipCodes"
+	allStationsPath              = "/StationWeb/GetAllStations"
+	stationByNumberPath          = "/StationWeb/GetStationByStationNumber"
+	allStationZipCodesPath       = "/StationWeb/GetAllStationsZipCodes"
+	stationZipCodeInfoPath       = "/StationWeb/GetStationZipCodeInfoByZipCode"
+	allSpatialZipCodesPath       = "/SpatialWeb/GetAllSpatialZipCodes"
+	spatialZipCodeInfoPath       = "/SpatialWeb/GetSpatialZipCodeInfoByZipCode"
 
 	// DailyDataItems is the standard set of daily measurements requested from the API.
 	DailyDataItems = "day-air-tmp-avg,day-asce-eto,day-wind-spd-avg,day-rel-hum-avg,day-sol-rad-avg,day-precip"
@@ -24,12 +42,20 @@ const (
 	// HourlyDataItems is the standard set of hourly measurements requested from the API.
 	HourlyDataItems = "hly-air-tmp,hly-asce-eto,hly-wind-spd,hly-wind-dir,hly-rel-hum,hly-sol-rad,hly-precip,hly-vap-pres"
 
+	// SpatialPointDataItems are the SCS measurements supported for coordinate and address requests.
+	SpatialPointDataItems = "day-asce-eto,day-sol-rad-avg"
+
+	// SpatialZipDataItems are the SCS measurements supported for spatial zip-code requests.
+	SpatialZipDataItems = "day-asce-eto,day-sol-rad-avg,day-wind-spd-avg"
+
 	// EpochYear is the base year for timestamp encoding (matches cimis-tsdb).
 	EpochYear = 1985
 )
 
 // Epoch is the reference time for timestamp calculations.
 var Epoch = time.Date(EpochYear, 1, 1, 0, 0, 0, 0, time.UTC)
+
+var newHTTPRequest = http.NewRequestWithContext
 
 // Client handles requests to the CIMIS API.
 type Client struct {
@@ -59,6 +85,67 @@ func (c *Client) SetBaseURL(baseURL string) {
 	c.baseURL = baseURL
 }
 
+func newCIMISRequest(ctx context.Context, baseURL, path string, params url.Values, appKey string) (*http.Request, string, error) {
+	requestURL, err := buildCIMISURL(baseURL, path, params)
+	if err != nil {
+		return nil, "", err
+	}
+
+	req, err := newHTTPRequest(ctx, http.MethodGet, requestURL, nil)
+	if err != nil {
+		return nil, "", err
+	}
+	req.Header.Set("Accept", "application/json")
+	if appKey != "" {
+		req.Header.Set(SubscriptionKeyHeader, appKey)
+	}
+
+	return req, requestURL, nil
+}
+
+func buildCIMISURL(baseURL, path string, params url.Values) (string, error) {
+	u, err := url.Parse(baseURL)
+	if err != nil {
+		return "", fmt.Errorf("parse base URL %q: %w", baseURL, err)
+	}
+	if u.Scheme == "" || u.Host == "" {
+		return "", fmt.Errorf("base URL must include scheme and host: %q", baseURL)
+	}
+
+	basePath := strings.TrimRight(u.Path, "/")
+	requestPath := strings.TrimLeft(path, "/")
+	if requestPath != "" {
+		u.Path = basePath + "/" + requestPath
+	}
+	u.RawQuery = params.Encode()
+
+	return u.String(), nil
+}
+
+func (c *Client) getJSON(path string, params url.Values, target any) error {
+	req, requestURL, err := newCIMISRequest(context.Background(), c.baseURL, path, params, c.appKey)
+	if err != nil {
+		return err
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("fetch %s: %w", requestURL, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return apiError(resp.StatusCode, requestURL, body)
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(target); err != nil {
+		return fmt.Errorf("decode response from %s: %w", requestURL, err)
+	}
+
+	return nil
+}
+
 // MeasurementValue represents a single measurement with value, QC code, and unit.
 type MeasurementValue struct {
 	Value string `json:"Value"`
@@ -80,6 +167,8 @@ type DailyDataRecord struct {
 	Station       string            `json:"Station"`
 	Standard      string            `json:"Standard"`
 	ZipCodes      string            `json:"ZipCodes"`
+	Coordinate    string            `json:"Coordinate"`
+	Address       string            `json:"Address"`
 	Scope         string            `json:"Scope"`
 	DayAirTmpAvg  *MeasurementValue `json:"DayAirTmpAvg,omitempty"`
 	DayAsceEto    *MeasurementValue `json:"DayAsceEto,omitempty"`
@@ -149,38 +238,73 @@ type HourlyAPIResponse struct {
 	} `json:"Data"`
 }
 
+// Station describes a CIMIS weather station returned by the station endpoints.
+type Station struct {
+	StationNbr     string   `json:"StationNbr"`
+	Name           string   `json:"Name"`
+	City           string   `json:"City"`
+	RegionalOffice string   `json:"RegionalOffice"`
+	County         string   `json:"County"`
+	ConnectDate    string   `json:"ConnectDate"`
+	DisconnectDate string   `json:"DisconnectDate"`
+	IsActive       string   `json:"IsActive"`
+	IsEtoStation   string   `json:"IsEtoStation"`
+	Elevation      string   `json:"Elevation"`
+	GroundCover    string   `json:"GroundCover"`
+	HmsLatitude    string   `json:"HmsLatitude"`
+	HmsLongitude   string   `json:"HmsLongitude"`
+	ZipCodes       []string `json:"ZipCodes"`
+	SitingDesc     string   `json:"SitingDesc"`
+}
+
+// StationsResponse is the response shape for station metadata endpoints.
+type StationsResponse struct {
+	Stations []Station `json:"Stations"`
+}
+
+// ZipCodeInfo describes a CIMIS station or spatial zip code mapping.
+type ZipCodeInfo struct {
+	StationNbr     int    `json:"StationNbr,omitempty"`
+	ZipCode        string `json:"ZipCode"`
+	ConnectDate    string `json:"ConnectDate"`
+	DisconnectDate string `json:"DisconnectDate"`
+	IsActive       string `json:"IsActive"`
+}
+
+// ZipCodesResponse is the response shape for station and spatial zip code endpoints.
+type ZipCodesResponse struct {
+	ZipCodes []ZipCodeInfo `json:"ZipCodes"`
+}
+
+// Coordinate identifies a Spatial CIMIS location in decimal degrees.
+type Coordinate struct {
+	Lat float64
+	Lng float64
+}
+
+// SpatialAddress identifies a geocoded Spatial CIMIS address target.
+type SpatialAddress struct {
+	Name    string
+	Address string
+}
+
 // FetchDailyData retrieves daily data for a specific station and date range.
 func (c *Client) FetchDailyData(stationID int, startDate, endDate string) ([]*DailyDataRecord, error) {
 	params := url.Values{}
-	params.Set("appKey", c.appKey)
-	params.Set("targets", strconv.Itoa(stationID))
-	params.Set("startDate", startDate)
-	params.Set("endDate", endDate)
+	params.Set("stationNbrs", strconv.Itoa(stationID))
+	params.Set("startDate", NormalizeCIMISDate(startDate))
+	params.Set("endDate", NormalizeCIMISDate(endDate))
+	params.Set("isHourly", "false")
 	params.Set("dataItems", DailyDataItems)
 	params.Set("unitOfMeasure", "M")
 
-	requestURL := fmt.Sprintf("%s?%s", c.baseURL, params.Encode())
-	fmt.Printf("Fetching: %s\n", requestURL)
-
-	resp, err := c.httpClient.Get(requestURL)
-	if err != nil {
-		return nil, fmt.Errorf("fetch daily data for station %d (%s to %s): %w", stationID, startDate, endDate, err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, apiError(resp.StatusCode, stationID, startDate, endDate, body)
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read response for station %d: %w", stationID, err)
+	if requestURL, err := buildCIMISURL(c.baseURL, stationDataByNumberPath, params); err == nil {
+		fmt.Printf("Fetching: %s\n", requestURL)
 	}
 
 	var apiResp APIResponse
-	if err := json.Unmarshal(body, &apiResp); err != nil {
-		return nil, fmt.Errorf("decode response for station %d: %w", stationID, err)
+	if err := c.getJSON(stationDataByNumberPath, params, &apiResp); err != nil {
+		return nil, fmt.Errorf("fetch daily data for station %d (%s to %s): %w", stationID, startDate, endDate, err)
 	}
 
 	// Flatten records from all providers
@@ -195,35 +319,20 @@ func (c *Client) FetchDailyData(stationID int, startDate, endDate string) ([]*Da
 // FetchHourlyData retrieves hourly data for a specific station and date range.
 func (c *Client) FetchHourlyData(stationID int, startDate, endDate string) ([]*HourlyDataRecord, error) {
 	params := url.Values{}
-	params.Set("appKey", c.appKey)
-	params.Set("targets", strconv.Itoa(stationID))
-	params.Set("startDate", startDate)
-	params.Set("endDate", endDate)
+	params.Set("stationNbrs", strconv.Itoa(stationID))
+	params.Set("startDate", NormalizeCIMISDate(startDate))
+	params.Set("endDate", NormalizeCIMISDate(endDate))
+	params.Set("isHourly", "true")
 	params.Set("dataItems", HourlyDataItems)
 	params.Set("unitOfMeasure", "M")
 
-	requestURL := fmt.Sprintf("%s?%s", c.baseURL, params.Encode())
-	fmt.Printf("Fetching hourly: %s\n", requestURL)
-
-	resp, err := c.httpClient.Get(requestURL)
-	if err != nil {
-		return nil, fmt.Errorf("fetch hourly data for station %d (%s to %s): %w", stationID, startDate, endDate, err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, apiError(resp.StatusCode, stationID, startDate, endDate, body)
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read response for station %d: %w", stationID, err)
+	if requestURL, err := buildCIMISURL(c.baseURL, stationDataByNumberPath, params); err == nil {
+		fmt.Printf("Fetching hourly: %s\n", requestURL)
 	}
 
 	var apiResp HourlyAPIResponse
-	if err := json.Unmarshal(body, &apiResp); err != nil {
-		return nil, fmt.Errorf("decode response for station %d: %w", stationID, err)
+	if err := c.getJSON(stationDataByNumberPath, params, &apiResp); err != nil {
+		return nil, fmt.Errorf("fetch hourly data for station %d (%s to %s): %w", stationID, startDate, endDate, err)
 	}
 
 	// Flatten records from all providers
@@ -235,9 +344,201 @@ func (c *Client) FetchHourlyData(stationID int, startDate, endDate string) ([]*H
 	return records, nil
 }
 
+// FetchDailyDataByStationZipCodes retrieves daily WSN data for supported station zip codes.
+func (c *Client) FetchDailyDataByStationZipCodes(zipCodes []string, startDate, endDate string) ([]*DailyDataRecord, error) {
+	return c.fetchDailyByZipCodes(stationDataByZipCodePath, zipCodes, startDate, endDate, "")
+}
+
+// FetchHourlyDataByStationZipCodes retrieves hourly WSN data for supported station zip codes.
+func (c *Client) FetchHourlyDataByStationZipCodes(zipCodes []string, startDate, endDate string) ([]*HourlyDataRecord, error) {
+	params := url.Values{}
+	params.Set("zipCodes", strings.Join(zipCodes, ","))
+	params.Set("startDate", NormalizeCIMISDate(startDate))
+	params.Set("endDate", NormalizeCIMISDate(endDate))
+	params.Set("isHourly", "true")
+	params.Set("dataItems", HourlyDataItems)
+	params.Set("unitOfMeasure", "M")
+
+	var apiResp HourlyAPIResponse
+	if err := c.getJSON(stationDataByZipCodePath, params, &apiResp); err != nil {
+		return nil, fmt.Errorf("fetch hourly data for zip codes %s (%s to %s): %w", strings.Join(zipCodes, ","), startDate, endDate, err)
+	}
+
+	var records []*HourlyDataRecord
+	for _, provider := range apiResp.Data.Providers {
+		records = append(records, provider.Records...)
+	}
+	return records, nil
+}
+
+// FetchDailyDataBySpatialZipCodes retrieves daily SCS data for supported spatial zip codes.
+func (c *Client) FetchDailyDataBySpatialZipCodes(zipCodes []string, startDate, endDate string) ([]*DailyDataRecord, error) {
+	return c.fetchDailyByZipCodes(spatialDataByZipCodePath, zipCodes, startDate, endDate, "")
+}
+
+// FetchDailyDataByGeoStationZipCodes retrieves daily data using DWR's WSN/SCS zip code selection logic.
+func (c *Client) FetchDailyDataByGeoStationZipCodes(zipCodes []string, startDate, endDate, prefer string) ([]*DailyDataRecord, error) {
+	return c.fetchDailyByZipCodes(geoStationDataByZipCodePath, zipCodes, startDate, endDate, prefer)
+}
+
+func (c *Client) fetchDailyByZipCodes(path string, zipCodes []string, startDate, endDate, prefer string) ([]*DailyDataRecord, error) {
+	params := url.Values{}
+	params.Set("zipCodes", strings.Join(zipCodes, ","))
+	params.Set("startDate", NormalizeCIMISDate(startDate))
+	params.Set("endDate", NormalizeCIMISDate(endDate))
+	params.Set("isHourly", "false")
+	params.Set("dataItems", dataItemsForZipCodePath(path))
+	params.Set("unitOfMeasure", "M")
+	if prefer != "" {
+		params.Set("prefer", prefer)
+	}
+
+	var apiResp APIResponse
+	if err := c.getJSON(path, params, &apiResp); err != nil {
+		return nil, fmt.Errorf("fetch daily data for zip codes %s (%s to %s): %w", strings.Join(zipCodes, ","), startDate, endDate, err)
+	}
+
+	var records []*DailyDataRecord
+	for _, provider := range apiResp.Data.Providers {
+		records = append(records, provider.Records...)
+	}
+
+	return records, nil
+}
+
+func dataItemsForZipCodePath(path string) string {
+	switch path {
+	case spatialDataByZipCodePath, geoStationDataByZipCodePath:
+		return SpatialZipDataItems
+	default:
+		return DailyDataItems
+	}
+}
+
+// FetchDailyDataBySpatialCoordinates retrieves daily SCS data for decimal-degree coordinates.
+func (c *Client) FetchDailyDataBySpatialCoordinates(coordinates []Coordinate, startDate, endDate string) ([]*DailyDataRecord, error) {
+	params := url.Values{}
+	params.Set("coordinates", formatCoordinates(coordinates))
+	params.Set("startDate", NormalizeCIMISDate(startDate))
+	params.Set("endDate", NormalizeCIMISDate(endDate))
+	params.Set("dataItems", SpatialPointDataItems)
+	params.Set("unitOfMeasure", "M")
+
+	var apiResp APIResponse
+	if err := c.getJSON(spatialDataByCoordinatesPath, params, &apiResp); err != nil {
+		return nil, fmt.Errorf("fetch daily data for coordinates (%s to %s): %w", startDate, endDate, err)
+	}
+
+	var records []*DailyDataRecord
+	for _, provider := range apiResp.Data.Providers {
+		records = append(records, provider.Records...)
+	}
+	return records, nil
+}
+
+// FetchDailyDataBySpatialAddresses retrieves daily SCS data for street addresses.
+func (c *Client) FetchDailyDataBySpatialAddresses(addresses []SpatialAddress, startDate, endDate string) ([]*DailyDataRecord, error) {
+	params := url.Values{}
+	params.Set("addresses", formatSpatialAddresses(addresses))
+	params.Set("startDate", NormalizeCIMISDate(startDate))
+	params.Set("endDate", NormalizeCIMISDate(endDate))
+	params.Set("dataItems", SpatialPointDataItems)
+	params.Set("unitOfMeasure", "M")
+
+	var apiResp APIResponse
+	if err := c.getJSON(spatialDataByAddressesPath, params, &apiResp); err != nil {
+		return nil, fmt.Errorf("fetch daily data for addresses (%s to %s): %w", startDate, endDate, err)
+	}
+
+	var records []*DailyDataRecord
+	for _, provider := range apiResp.Data.Providers {
+		records = append(records, provider.Records...)
+	}
+	return records, nil
+}
+
+func formatCoordinates(coordinates []Coordinate) string {
+	parts := make([]string, 0, len(coordinates))
+	for _, coordinate := range coordinates {
+		parts = append(parts, fmt.Sprintf("lat=%g,lng=%g", coordinate.Lat, coordinate.Lng))
+	}
+	return strings.Join(parts, ";")
+}
+
+func formatSpatialAddresses(addresses []SpatialAddress) string {
+	parts := make([]string, 0, len(addresses))
+	for _, address := range addresses {
+		parts = append(parts, fmt.Sprintf("addr-name=%s,addr=%s", address.Name, address.Address))
+	}
+	return strings.Join(parts, ";")
+}
+
+// FetchAllStations retrieves CIMIS station metadata for all stations.
+func (c *Client) FetchAllStations() ([]Station, error) {
+	var resp StationsResponse
+	if err := c.getJSON(allStationsPath, nil, &resp); err != nil {
+		return nil, err
+	}
+	return resp.Stations, nil
+}
+
+// FetchStation retrieves CIMIS station metadata by station number.
+func (c *Client) FetchStation(stationID int) ([]Station, error) {
+	params := url.Values{}
+	params.Set("stationNbr", strconv.Itoa(stationID))
+
+	var resp StationsResponse
+	if err := c.getJSON(stationByNumberPath, params, &resp); err != nil {
+		return nil, err
+	}
+	return resp.Stations, nil
+}
+
+// FetchAllStationZipCodes retrieves all zip codes supported by station data.
+func (c *Client) FetchAllStationZipCodes() ([]ZipCodeInfo, error) {
+	var resp ZipCodesResponse
+	if err := c.getJSON(allStationZipCodesPath, nil, &resp); err != nil {
+		return nil, err
+	}
+	return resp.ZipCodes, nil
+}
+
+// FetchStationZipCodeInfo retrieves station zip code support information by zip code.
+func (c *Client) FetchStationZipCodeInfo(zipCode string) ([]ZipCodeInfo, error) {
+	params := url.Values{}
+	params.Set("zipCode", zipCode)
+
+	var resp ZipCodesResponse
+	if err := c.getJSON(stationZipCodeInfoPath, params, &resp); err != nil {
+		return nil, err
+	}
+	return resp.ZipCodes, nil
+}
+
+// FetchAllSpatialZipCodes retrieves all zip codes supported by Spatial CIMIS.
+func (c *Client) FetchAllSpatialZipCodes() ([]ZipCodeInfo, error) {
+	var resp ZipCodesResponse
+	if err := c.getJSON(allSpatialZipCodesPath, nil, &resp); err != nil {
+		return nil, err
+	}
+	return resp.ZipCodes, nil
+}
+
+// FetchSpatialZipCodeInfo retrieves Spatial CIMIS zip code support information by zip code.
+func (c *Client) FetchSpatialZipCodeInfo(zipCode string) ([]ZipCodeInfo, error) {
+	params := url.Values{}
+	params.Set("zipCode", zipCode)
+
+	var resp ZipCodesResponse
+	if err := c.getJSON(spatialZipCodeInfoPath, params, &resp); err != nil {
+		return nil, err
+	}
+	return resp.ZipCodes, nil
+}
+
 // apiError builds a descriptive error for non-OK API responses with suggestions.
-func apiError(statusCode, stationID int, startDate, endDate string, body []byte) error {
-	msg := fmt.Sprintf("API returned status %d for station %d (%s to %s)", statusCode, stationID, startDate, endDate)
+func apiError(statusCode int, requestURL string, body []byte) error {
+	msg := fmt.Sprintf("API returned status %d for %s", statusCode, requestURL)
 	if len(body) > 0 {
 		msg += ": " + string(body)
 	}
@@ -252,14 +553,26 @@ func apiError(statusCode, stationID int, startDate, endDate string, body []byte)
 	return fmt.Errorf("%s", msg)
 }
 
-// ParseCIMISDate parses a CIMIS date string (MM/DD/YYYY) into time.Time.
+// ParseCIMISDate parses a CIMIS date string into time.Time.
 func ParseCIMISDate(dateStr string) (time.Time, error) {
+	if t, err := time.Parse("2006-01-02", dateStr); err == nil {
+		return t, nil
+	}
 	return time.Parse("01/02/2006", dateStr)
 }
 
-// FormatCIMISDate formats a time.Time for CIMIS API (MM/DD/YYYY).
+// FormatCIMISDate formats a time.Time for the current CIMIS API (YYYY-MM-DD).
 func FormatCIMISDate(t time.Time) string {
-	return t.Format("01/02/2006")
+	return t.Format("2006-01-02")
+}
+
+// NormalizeCIMISDate converts supported CLI date inputs to the API's YYYY-MM-DD format.
+func NormalizeCIMISDate(dateStr string) string {
+	t, err := ParseCIMISDate(dateStr)
+	if err != nil {
+		return dateStr
+	}
+	return FormatCIMISDate(t)
 }
 
 // ParseMeasurementValue safely parses a string value to float64.

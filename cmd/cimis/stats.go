@@ -2,23 +2,26 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"path/filepath"
 
 	"github.com/dl-alexandre/cimis-tsdb/metadata"
 )
 
 func cmdStats(dataDir string) {
+	fatalIfErr(runStats(dataDir))
+}
+
+func runStats(dataDir string) error {
 	dbPath := filepath.Join(dataDir, "metadata.sqlite3")
 	store, err := metadata.NewStore(dbPath)
 	if err != nil {
-		log.Fatalf("Failed to open metadata store: %v", err)
+		return fmt.Errorf("failed to open metadata store: %w", err)
 	}
 	defer store.Close()
 
-	stats, err := store.GetDatabaseStats()
+	stats, err := getDatabaseStats(store)
 	if err != nil {
-		log.Fatalf("Failed to get stats: %v", err)
+		return fmt.Errorf("failed to get stats: %w", err)
 	}
 
 	fmt.Println("Database Statistics")
@@ -29,4 +32,5 @@ func cmdStats(dataDir string) {
 	fmt.Printf("Total rows:         %d\n", stats.TotalRows)
 	fmt.Printf("Compressed size:    %.2f MB\n", float64(stats.TotalCompressedBytes)/(1024*1024))
 	fmt.Printf("Avg compression:    %.2fx\n", stats.AvgCompressionRatio)
+	return nil
 }

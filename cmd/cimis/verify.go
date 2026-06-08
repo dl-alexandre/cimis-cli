@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -10,12 +9,21 @@ import (
 	"github.com/dl-alexandre/cimis-tsdb/storage"
 )
 
+var (
+	verifyReadDir  = os.ReadDir
+	verifyReadFile = os.ReadFile
+)
+
 func cmdVerify(dataDir string) {
+	fatalIfErr(runVerify(dataDir))
+}
+
+func runVerify(dataDir string) error {
 	// Walk data directory
 	stationsDir := filepath.Join(dataDir, "stations")
-	entries, err := os.ReadDir(stationsDir)
+	entries, err := verifyReadDir(stationsDir)
 	if err != nil {
-		log.Fatalf("Failed to read stations directory: %v", err)
+		return fmt.Errorf("failed to read stations directory: %w", err)
 	}
 
 	var verified, failed int
@@ -26,7 +34,7 @@ func cmdVerify(dataDir string) {
 		}
 
 		stationDir := filepath.Join(stationsDir, entry.Name())
-		chunks, err := os.ReadDir(stationDir)
+		chunks, err := verifyReadDir(stationDir)
 		if err != nil {
 			continue
 		}
@@ -41,7 +49,7 @@ func cmdVerify(dataDir string) {
 
 			// Try to read and decompress
 			filePath := filepath.Join(stationDir, chunk.Name())
-			compressed, err := os.ReadFile(filePath)
+			compressed, err := verifyReadFile(filePath)
 			if err != nil {
 				fmt.Printf("FAIL: %s - read error: %v\n", filePath, err)
 				failed++
@@ -62,6 +70,7 @@ func cmdVerify(dataDir string) {
 
 	fmt.Printf("\nVerification complete: %d OK, %d failed\n", verified, failed)
 	if failed > 0 {
-		os.Exit(1)
+		return fmt.Errorf("%d chunk(s) failed verification", failed)
 	}
+	return nil
 }

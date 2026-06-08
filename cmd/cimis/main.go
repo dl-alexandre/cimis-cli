@@ -11,6 +11,12 @@ import (
 	cliver "github.com/dl-alexandre/cli-tools/version"
 )
 
+var (
+	autoUpdateCheck = cli.AutoUpdateCheck
+	checkForUpdates = cli.CheckForUpdates
+	exitProcess     = os.Exit
+)
+
 // parseCacheSize parses cache size strings like "100MB", "1GB" to bytes.
 // Returns the size in bytes, or 0 if parsing fails.
 func parseCacheSize(sizeStr string) int64 {
@@ -48,70 +54,85 @@ func parseCacheSize(sizeStr string) int64 {
 }
 
 func main() {
+	if code := run(os.Args); code != 0 {
+		exitProcess(code)
+	}
+}
+
+func commandExitCode(err error) int {
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return 1
+	}
+	return 0
+}
+
+func run(args []string) int {
 	// Binary name is always cimis (set this BEFORE any version calls)
 	cliver.BinaryName = "cimis"
 
 	// Start automatic update check in background (non-blocking)
-	cli.AutoUpdateCheck()
+	autoUpdateCheck()
 
-	if len(os.Args) < 2 {
+	if len(args) < 2 {
 		printUsage()
-		os.Exit(1)
+		return 1
 	}
 
 	// Global flags
-	dataDir := flag.String("data-dir", "./data", "Data directory path")
-	appKey := flag.String("app-key", os.Getenv("CIMIS_APP_KEY"), "CIMIS API app key")
+	fs := flag.NewFlagSet("cimis", flag.ContinueOnError)
+	dataDir := fs.String("data-dir", "./data", "Data directory path")
+	appKey := fs.String("app-key", os.Getenv("CIMIS_APP_KEY"), "CIMIS API app key")
 
 	// Subcommands
-	switch os.Args[1] {
+	switch args[1] {
 	case "version":
 		fmt.Printf("cimis %s (%s) built %s\n", cliver.Version, cliver.GitCommit, cliver.BuildTime)
 
 	case "check-updates":
 		force := false
 		format := "table"
-		for i := 2; i < len(os.Args); i++ {
-			if os.Args[i] == "-force" || os.Args[i] == "--force" {
+		for i := 2; i < len(args); i++ {
+			if args[i] == "-force" || args[i] == "--force" {
 				force = true
-			} else if os.Args[i] == "-json" || os.Args[i] == "--json" {
+			} else if args[i] == "-json" || args[i] == "--json" {
 				format = "json"
 			}
 		}
 		_ = force
 		_ = format
-		if err := cli.CheckForUpdates(force, format); err != nil {
+		if err := checkForUpdates(force, format); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-			os.Exit(1)
+			return 1
 		}
 
 	case "init":
-		cmdInit(*dataDir)
+		return commandExitCode(runInit(*dataDir))
 
 	case "fetch":
 		fmt.Fprintln(os.Stderr, "Warning: 'fetch' command is deprecated. Use 'fetch-streaming' for better performance.")
-		cmdFetch(*dataDir, *appKey, os.Args[2:])
+		return commandExitCode(runFetch(*dataDir, *appKey, args[2:]))
 
 	case "fetch-streaming":
-		cmdFetchStreaming(*dataDir, *appKey, os.Args[2:])
+		return commandExitCode(runFetchStreaming(*dataDir, *appKey, args[2:]))
 
 	case "ingest":
-		cmdIngest(*dataDir, *appKey, os.Args[2:])
+		return commandExitCode(runIngest(*dataDir, *appKey, args[2:]))
 
 	case "ingest-opt":
-		cmdIngestOptimized(*dataDir, *appKey, os.Args[2:])
+		return commandExitCode(runIngestOptimized(*dataDir, *appKey, args[2:]))
 
 	case "query":
-		cmdQuery(*dataDir, os.Args[2:])
+		return commandExitCode(runQuery(*dataDir, args[2:]))
 
 	case "stats":
-		cmdStats(*dataDir)
+		return commandExitCode(runStats(*dataDir))
 
 	case "verify":
-		cmdVerify(*dataDir)
+		return commandExitCode(runVerify(*dataDir))
 
 	case "profile":
-		cmdProfile(*dataDir, os.Args[2:])
+		return commandExitCode(runProfile(*dataDir, args[2:]))
 
 	case "register":
 		cmdRegister()
@@ -123,10 +144,12 @@ func main() {
 		cmdAPI()
 
 	default:
-		fmt.Fprintf(os.Stderr, "Unknown command: %s\n", os.Args[1])
+		fmt.Fprintf(os.Stderr, "Unknown command: %s\n", args[1])
 		printUsage()
-		os.Exit(1)
+		return 1
 	}
+
+	return 0
 }
 
 func printUsage() {

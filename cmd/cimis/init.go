@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 
@@ -10,6 +9,10 @@ import (
 )
 
 func cmdInit(dataDir string) {
+	fatalIfErr(runInit(dataDir))
+}
+
+func runInit(dataDir string) error {
 	// Create directories
 	dirs := []string{
 		filepath.Join(dataDir, "stations"),
@@ -18,7 +21,7 @@ func cmdInit(dataDir string) {
 
 	for _, dir := range dirs {
 		if err := os.MkdirAll(dir, 0755); err != nil {
-			log.Fatalf("Failed to create directory %s: %v", dir, err)
+			return fmt.Errorf("failed to create directory %s: %w", dir, err)
 		}
 	}
 
@@ -26,11 +29,12 @@ func cmdInit(dataDir string) {
 	dbPath := filepath.Join(dataDir, "metadata.sqlite3")
 	store, err := metadata.NewStore(dbPath)
 	if err != nil {
-		log.Fatalf("Failed to initialize metadata database: %v", err)
+		return fmt.Errorf("failed to initialize metadata database: %w", err)
 	}
 	defer store.Close()
 
 	fmt.Println("Database initialized successfully")
 	fmt.Printf("Data directory: %s\n", dataDir)
 	fmt.Printf("Metadata: %s\n", dbPath)
+	return nil
 }

@@ -74,6 +74,11 @@ func NewOptimizedClient(appKey string) *OptimizedClient {
 	}
 }
 
+// SetBaseURL allows overriding the API base URL for tests.
+func (c *OptimizedClient) SetBaseURL(baseURL string) {
+	c.baseURL = baseURL
+}
+
 // FetchMetrics holds detailed timing metrics for a fetch operation.
 type FetchMetrics struct {
 	TotalDuration    time.Duration
@@ -120,26 +125,21 @@ func (c *OptimizedClient) FetchDailyDataStreaming(stationID int, startDate, endD
 
 	// Build URL
 	params := url.Values{}
-	params.Set("appKey", c.appKey)
-	params.Set("targets", strconv.Itoa(stationID))
-	params.Set("startDate", startDate)
-	params.Set("endDate", endDate)
+	params.Set("stationNbrs", strconv.Itoa(stationID))
+	params.Set("startDate", NormalizeCIMISDate(startDate))
+	params.Set("endDate", NormalizeCIMISDate(endDate))
+	params.Set("isHourly", "false")
 	params.Set("dataItems", DailyDataItems)
 	params.Set("unitOfMeasure", "M")
-
-	requestURL := fmt.Sprintf("%s?%s", c.baseURL, params.Encode())
 
 	// Create request with context for cancellation
 	ctx, cancel := context.WithTimeout(context.Background(), streamingTimeout)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, "GET", requestURL, nil)
+	req, requestURL, err := newCIMISRequest(ctx, c.baseURL, stationDataByNumberPath, params, c.appKey)
 	if err != nil {
 		return nil, metrics, fmt.Errorf("failed to create request: %w", err)
 	}
-
-	// Accept gzip encoding
-	req.Header.Set("Accept-Encoding", "gzip")
 
 	// Execute request with detailed timing
 	dialStart := time.Now()
@@ -156,7 +156,7 @@ func (c *OptimizedClient) FetchDailyDataStreaming(stationID int, startDate, endD
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return nil, metrics, apiError(resp.StatusCode, stationID, startDate, endDate, body)
+		return nil, metrics, apiError(resp.StatusCode, requestURL, body)
 	}
 
 	// Stream decode with bufio for reduced syscalls

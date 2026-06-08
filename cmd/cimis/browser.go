@@ -2,9 +2,16 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"os/exec"
 	"runtime"
+)
+
+var (
+	lookPath            = exec.LookPath
+	startBrowserCommand = func(cmd string, args ...string) error {
+		return exec.Command(cmd, args...).Start()
+	}
+	runtimeGOOS = runtime.GOOS
 )
 
 type BrowserOpener interface {
@@ -17,7 +24,7 @@ func (s *systemBrowserOpener) Open(url string) error {
 	var cmd string
 	var args []string
 
-	switch runtime.GOOS {
+	switch runtimeGOOS {
 	case "windows":
 		cmd = "cmd"
 		args = []string{"/c", "start", url}
@@ -29,11 +36,11 @@ func (s *systemBrowserOpener) Open(url string) error {
 		args = []string{url}
 	}
 
-	if _, err := exec.LookPath(cmd); err != nil {
+	if _, err := lookPath(cmd); err != nil {
 		return fmt.Errorf("no browser command found: %s not found. Please install a browser or manually visit: %s", cmd, url)
 	}
 
-	if err := exec.Command(cmd, args...).Start(); err != nil {
+	if err := startBrowserCommand(cmd, args...); err != nil {
 		return fmt.Errorf("failed to open browser: %w", err)
 	}
 	return nil
@@ -52,7 +59,7 @@ func cmdRegister() {
 	fmt.Printf("URL: %s\n", registerURL)
 
 	if err := openBrowser(registerURL); err != nil {
-		log.Fatalf("Failed to open browser: %v\nPlease manually visit: %s\n", err, registerURL)
+		logFatalf("Failed to open browser: %v\nPlease manually visit: %s\n", err, registerURL)
 	}
 
 	fmt.Println("Browser opened successfully!")
@@ -69,7 +76,7 @@ func cmdLogin() {
 	fmt.Printf("URL: %s\n", loginURL)
 
 	if err := openBrowser(loginURL); err != nil {
-		log.Fatalf("Failed to open browser: %v\nPlease manually visit: %s\n", err, loginURL)
+		logFatalf("Failed to open browser: %v\nPlease manually visit: %s\n", err, loginURL)
 	}
 
 	fmt.Println("Browser opened successfully!")
@@ -81,13 +88,13 @@ func cmdLogin() {
 }
 
 func cmdAPI() {
-	const apiURL = "https://cimis.water.ca.gov/WSNReportCriteria.aspx"
+	const apiURL = "https://et.water.ca.gov/"
 
 	fmt.Println("Opening CIMIS API documentation page in your browser...")
 	fmt.Printf("URL: %s\n", apiURL)
 
 	if err := openBrowser(apiURL); err != nil {
-		log.Fatalf("Failed to open browser: %v\nPlease manually visit: %s\n", err, apiURL)
+		logFatalf("Failed to open browser: %v\nPlease manually visit: %s\n", err, apiURL)
 	}
 
 	fmt.Println("Browser opened successfully!")

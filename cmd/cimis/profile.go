@@ -2,9 +2,9 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -16,8 +16,23 @@ import (
 	"github.com/dl-alexandre/cimis-tsdb/storage"
 )
 
+var (
+	notifyProfileSignal = func(ch chan<- os.Signal) {
+		signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
+	}
+	stopProfileSignal     = signal.Stop
+	getProfileMemoryStats = profile.GetMemoryStats
+	stopCPUProfile        = func(profiler *profile.Profiler) error {
+		return profiler.StopCPUProfile()
+	}
+)
+
 func cmdProfile(dataDir string, args []string) {
-	fs := flag.NewFlagSet("profile", flag.ExitOnError)
+	fatalIfErr(runProfile(dataDir, args))
+}
+
+func runProfile(dataDir string, args []string) error {
+	fs := flag.NewFlagSet("profile", flag.ContinueOnError)
 	cpu := fs.String("cpu", "", "CPU profile output file")
 	heap := fs.String("heap", "", "Heap profile output file")
 	allocs := fs.String("allocs", "", "Allocations profile output file")
@@ -30,27 +45,31 @@ func cmdProfile(dataDir string, args []string) {
 	ingestYear := fs.Int("year", 0, "Year for memory profiling during ingest")
 
 	if err := fs.Parse(args); err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	// Start pprof server if requested
 	if *server != "" {
-		profile.StartPProfServer(*server)
+		pprofServer := profile.StartPProfServer(*server)
 		fmt.Printf("pprof server started on %s\n", *server)
 		fmt.Println("Press Ctrl+C to stop...")
 
 		// Wait for interrupt
 		sigChan := make(chan os.Signal, 1)
-		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+		notifyProfileSignal(sigChan)
 		<-sigChan
+		stopProfileSignal(sigChan)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		_ = pprofServer.Shutdown(ctx)
 		fmt.Println("\nShutting down...")
-		return
+		return nil
 	}
 
 	// Print runtime stats
 	if *stats {
 		profile.PrintRuntimeStats(os.Stdout)
-		return
+		return nil
 	}
 
 	profiler := profile.NewProfiler()
@@ -59,13 +78,13 @@ func cmdProfile(dataDir string, args []string) {
 	if *cpu != "" {
 		fmt.Printf("Starting CPU profile for %v...\n", *duration)
 		if err := profiler.StartCPUProfile(*cpu); err != nil {
-			log.Fatalf("Failed to start CPU profile: %v", err)
+			return fmt.Errorf("failed to start CPU profile: %w", err)
 		}
 
 		time.Sleep(*duration)
 
-		if err := profiler.StopCPUProfile(); err != nil {
-			log.Fatalf("Failed to stop CPU profile: %v", err)
+		if err := stopCPUProfile(profiler); err != nil {
+			return fmt.Errorf("failed to stop CPU profile: %w", err)
 		}
 		fmt.Printf("CPU profile written to: %s\n", *cpu)
 	}
@@ -73,7 +92,7 @@ func cmdProfile(dataDir string, args []string) {
 	// Heap profiling
 	if *heap != "" {
 		if err := profiler.WriteHeapProfile(*heap); err != nil {
-			log.Fatalf("Failed to write heap profile: %v", err)
+			return fmt.Errorf("failed to write heap profile: %w", err)
 		}
 		fmt.Printf("Heap profile written to: %s\n", *heap)
 	}
@@ -81,7 +100,7 @@ func cmdProfile(dataDir string, args []string) {
 	// Allocs profiling
 	if *allocs != "" {
 		if err := profiler.ProfileAllocs(*allocs); err != nil {
-			log.Fatalf("Failed to write allocs profile: %v", err)
+			return fmt.Errorf("failed to write allocs profile: %w", err)
 		}
 		fmt.Printf("Allocs profile written to: %s\n", *allocs)
 	}
@@ -89,7 +108,7 @@ func cmdProfile(dataDir string, args []string) {
 	// Goroutine profiling
 	if *goroutines != "" {
 		if err := profiler.ProfileGoroutines(*goroutines); err != nil {
-			log.Fatalf("Failed to write goroutine profile: %v", err)
+			return fmt.Errorf("failed to write goroutine profile: %w", err)
 		}
 		fmt.Printf("Goroutine profile written to: %s\n", *goroutines)
 	}
@@ -99,7 +118,7 @@ func cmdProfile(dataDir string, args []string) {
 		profile.EnableMutexProfiling(1)
 		time.Sleep(*duration)
 		if err := profiler.ProfileMutex(*mutex); err != nil {
-			log.Fatalf("Failed to write mutex profile: %v", err)
+			return fmt.Errorf("failed to write mutex profile: %w", err)
 		}
 		fmt.Printf("Mutex profile written to: %s\n", *mutex)
 	}
@@ -107,7 +126,7 @@ func cmdProfile(dataDir string, args []string) {
 	// Memory profiling during ingestion
 	if *ingestStation > 0 && *ingestYear > 0 {
 		profileMemoryDuringIngest(*ingestStation, *ingestYear, dataDir)
-		return
+		return nil
 	}
 
 	// If no specific profile requested, print stats
@@ -123,6 +142,7 @@ func cmdProfile(dataDir string, args []string) {
 		fmt.Println("\n  Print runtime stats:")
 		fmt.Println("    cimis profile -stats")
 	}
+	return nil
 }
 
 func profileMemoryDuringIngest(stationID int, year int, dataDir string) {
@@ -131,25 +151,25 @@ func profileMemoryDuringIngest(stationID int, year int, dataDir string) {
 	// Get API key
 	apiKey := os.Getenv("CIMIS_APP_KEY")
 	if apiKey == "" {
-		log.Fatal("CIMIS_APP_KEY environment variable not set")
+		logFatal("CIMIS_APP_KEY environment variable not set")
 	}
 
 	// Create API client
-	client := api.NewClient(apiKey)
+	client := newAPIClient(apiKey)
 	startDate := time.Date(year, 1, 1, 0, 0, 0, 0, time.UTC)
 	endDate := time.Date(year, 12, 31, 0, 0, 0, 0, time.UTC)
 
 	// Capture initial memory state
 	fmt.Println("\n=== Memory Before Ingestion ===")
 	profile.PrintRuntimeStats(os.Stdout)
-	initialStats := profile.GetMemoryStats()
+	initialStats := getProfileMemoryStats()
 
 	// Fetch data
 	fmt.Printf("\nFetching daily data for station %d, year %d...\n", stationID, year)
 	fetchStart := time.Now()
 	apiRecords, err := client.FetchDailyData(stationID, api.FormatCIMISDate(startDate), api.FormatCIMISDate(endDate))
 	if err != nil {
-		log.Fatalf("Failed to fetch data: %v", err)
+		logFatalf("Failed to fetch data: %v", err)
 	}
 	fetchDuration := time.Since(fetchStart)
 
@@ -166,14 +186,14 @@ func profileMemoryDuringIngest(stationID int, year int, dataDir string) {
 
 	processStart := time.Now()
 	cd := storage.ExtractColumns(records)
-	optData, _, err := storage.OptimizeColumns(cd, uint16(stationID))
+	optData, _, err := optimizeColumns(cd, uint16(stationID))
 	if err != nil {
-		log.Fatalf("Failed to optimize columns: %v", err)
+		logFatalf("Failed to optimize columns: %v", err)
 	}
 
-	compressed, err := storage.CompressLevel(optData, 3)
+	compressed, err := compressLevel(optData, 3)
 	if err != nil {
-		log.Fatalf("Failed to compress: %v", err)
+		logFatalf("Failed to compress: %v", err)
 	}
 	processDuration := time.Since(processStart)
 
@@ -192,12 +212,14 @@ func profileMemoryDuringIngest(stationID int, year int, dataDir string) {
 	// Capture final memory state
 	fmt.Println("\n=== Memory After Ingestion ===")
 	profile.PrintRuntimeStats(os.Stdout)
-	finalStats := profile.GetMemoryStats()
+	finalStats := getProfileMemoryStats()
 
 	// Calculate memory usage
 	totalDuration := fetchDuration + processDuration + writeDuration
-	memUsed := finalStats.Alloc - initialStats.Alloc
-	if memUsed < 0 {
+	var memUsed uint64
+	if finalStats.Alloc >= initialStats.Alloc {
+		memUsed = finalStats.Alloc - initialStats.Alloc
+	} else {
 		memUsed = 0
 	}
 

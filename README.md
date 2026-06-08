@@ -188,8 +188,8 @@ cimis profile \
 
 - `-stations string` - CSV list or range (e.g., `2,5,10` or `1-10`)
 - `-year int` - Year to fetch
-- `-start string` - Start date `MM/DD/YYYY` (overrides year)
-- `-end string` - End date `MM/DD/YYYY` (overrides year)
+- `-start string` - Start date `YYYY-MM-DD` (overrides year; `MM/DD/YYYY` also accepted)
+- `-end string` - End date `YYYY-MM-DD` (overrides year; `MM/DD/YYYY` also accepted)
 - `-concurrency int` - Worker pool size (default: 4)
 - `-retries int` - Max retries on failure (default: 3)
 - `-perf` - Print detailed metrics
@@ -235,7 +235,7 @@ See the [library documentation](https://github.com/dl-alexandre/cimis-tsdb#readm
 
 ```bash
 # Fetch today's data for station 2
-cimis fetch-streaming -stations 2 -start $(date -v-1d +%m/%d/%Y) -end $(date +%m/%d/%Y)
+cimis fetch-streaming -stations 2 -start $(date -v-1d +%Y-%m-%d) -end $(date +%Y-%m-%d)
 
 # Query last 7 days
 cimis query -station 2 -start $(date -v-7d +%Y-%m-%d) -end $(date +%Y-%m-%d)
@@ -277,5 +277,5 @@ MIT
 ## Links
 
 - [CIMIS Website](https://cimis.water.ca.gov/)
-- [CIMIS API Documentation](https://cimis.water.ca.gov/WSNReportCriteria.aspx)
+- [CIMIS API Documentation](https://et.water.ca.gov/)
 - [cimis-tsdb Library](https://github.com/dl-alexandre/cimis-tsdb)

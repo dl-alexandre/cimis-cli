@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"path/filepath"
 	"time"
 
@@ -14,8 +13,12 @@ import (
 )
 
 func cmdQuery(dataDir string, args []string) {
+	fatalIfErr(runQuery(dataDir, args))
+}
+
+func runQuery(dataDir string, args []string) error {
 	// Parse flags
-	fs := flag.NewFlagSet("query", flag.ExitOnError)
+	fs := flag.NewFlagSet("query", flag.ContinueOnError)
 	stationID := fs.Int("station", 0, "Station ID")
 	startDate := fs.String("start", "", "Start date (YYYY-MM-DD)")
 	endDate := fs.String("end", "", "End date (YYYY-MM-DD)")
@@ -24,11 +27,11 @@ func cmdQuery(dataDir string, args []string) {
 	cache := fs.String("cache", "", "Enable caching with specified size (e.g., 100MB, 1GB)")
 
 	if err := fs.Parse(args); err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	if *stationID == 0 {
-		log.Fatal("Station ID required")
+		return fmt.Errorf("station ID required")
 	}
 
 	// Start total query timer
@@ -37,18 +40,18 @@ func cmdQuery(dataDir string, args []string) {
 	// Parse dates
 	start, err := time.Parse("2006-01-02", *startDate)
 	if err != nil {
-		log.Fatalf("Invalid start date: %v", err)
+		return fmt.Errorf("invalid start date: %w", err)
 	}
 	end, err := time.Parse("2006-01-02", *endDate)
 	if err != nil {
-		log.Fatalf("Invalid end date: %v", err)
+		return fmt.Errorf("invalid end date: %w", err)
 	}
 
 	// Initialize metadata store
 	dbPath := filepath.Join(dataDir, "metadata.sqlite3")
 	store, err := metadata.NewStore(dbPath)
 	if err != nil {
-		log.Fatalf("Failed to open metadata store: %v", err)
+		return fmt.Errorf("failed to open metadata store: %w", err)
 	}
 	defer store.Close()
 
@@ -62,7 +65,7 @@ func cmdQuery(dataDir string, args []string) {
 	if *cache != "" {
 		cacheSize := parseCacheSize(*cache)
 		if cacheSize <= 0 {
-			log.Fatalf("Invalid cache size: %s", *cache)
+			return fmt.Errorf("invalid cache size: %s", *cache)
 		}
 		cachedReader = storage.NewCachedChunkReader(dataDir, cacheSize)
 		reader = cachedReader
@@ -80,15 +83,15 @@ func cmdQuery(dataDir string, args []string) {
 
 	// Time metadata lookup
 	metadataStart := time.Now()
-	chunks, err := store.GetChunksForYearRange(uint16(*stationID), startYear, endYear, dataType)
+	chunks, err := getChunksForYearRange(store, uint16(*stationID), startYear, endYear, dataType)
 	metadataDuration := time.Since(metadataStart)
 	if err != nil {
-		log.Fatalf("Failed to get chunks: %v", err)
+		return fmt.Errorf("failed to get chunks: %w", err)
 	}
 
 	if len(chunks) == 0 {
 		fmt.Printf("No data found for station %d in range %s to %s\n", *stationID, *startDate, *endDate)
-		return
+		return nil
 	}
 
 	// Read and filter records
@@ -109,7 +112,7 @@ func cmdQuery(dataDir string, args []string) {
 			chunksRead++
 
 			if err != nil {
-				log.Printf("Warning: failed to read chunk %d: %v", chunk.Year, err)
+				fmt.Printf("Warning: failed to read chunk %d: %v\n", chunk.Year, err)
 				continue
 			}
 			// Filter by timestamp range
@@ -141,7 +144,7 @@ func cmdQuery(dataDir string, args []string) {
 			chunksRead++
 
 			if err != nil {
-				log.Printf("Warning: failed to read chunk %d: %v", chunk.Year, err)
+				fmt.Printf("Warning: failed to read chunk %d: %v\n", chunk.Year, err)
 				continue
 			}
 			// Filter by timestamp range
@@ -204,4 +207,5 @@ func cmdQuery(dataDir string, args []string) {
 			fmt.Println(storage.FormatCacheStats(cacheStats))
 		}
 	}
+	return nil
 }

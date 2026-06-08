@@ -136,16 +136,19 @@ func OptimizedHTTPTransport() *http.Transport {
 ```go
 func (c *Client) FetchHourlyData(stationID int, startDate, endDate string) ([]*HourlyDataRecord, error) {
 	params := url.Values{}
-	params.Set("appKey", c.appKey)
-	params.Set("stationIds", strconv.Itoa(stationID))
-	params.Set("startDate", startDate)
-	params.Set("endDate", endDate)
+	params.Set("stationNbrs", strconv.Itoa(stationID))
+	params.Set("startDate", NormalizeCIMISDate(startDate))
+	params.Set("endDate", NormalizeCIMISDate(endDate))
+	params.Set("isHourly", "true")
 	params.Set("dataItems", HourlyDataItems)
 
-	requestURL := c.baseURL + "?" + params.Encode()
+	req, requestURL, err := newCIMISRequest(context.Background(), c.baseURL, stationDataByNumberPath, params, c.appKey)
+	if err != nil {
+		return nil, err
+	}
 	fmt.Printf("Fetching hourly: %s\n", requestURL)
 
-	resp, err := c.httpClient.Get(requestURL)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("fetch hourly data for station %d (%s to %s): %w", stationID, startDate, endDate, err)
 	}
@@ -167,6 +170,7 @@ func (c *Client) FetchHourlyData(stationID int, startDate, endDate string) ([]*H
 
 **Key Characteristics:**
 - Uses `url.Values` for query parameters
+- Sends API keys in `Ocp-Apim-Subscription-Key`, not in URLs
 - Wraps errors with context using `fmt.Errorf` and `%w`
 - Checks HTTP status code explicitly
 - Defers response body close

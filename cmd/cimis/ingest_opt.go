@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -13,73 +12,87 @@ import (
 	"github.com/dl-alexandre/cimis-tsdb/storage"
 )
 
+var (
+	optimizeColumns = storage.OptimizeColumns
+	compressLevel   = storage.CompressLevel
+	decompressData  = storage.Decompress
+)
+
 func cmdIngestOptimized(dataDir, appKey string, args []string) {
+	fatalIfErr(runIngestOptimized(dataDir, appKey, args))
+}
+
+func runIngestOptimized(dataDir, appKey string, args []string) error {
 	if appKey == "" {
-		log.Fatal("CIMIS app key required")
+		return fmt.Errorf("CIMIS app key required")
 	}
 
-	fs := flag.NewFlagSet("ingest-optimized", flag.ExitOnError)
+	fs := flag.NewFlagSet("ingest-optimized", flag.ContinueOnError)
 	stationID := fs.Int("station", 0, "Station ID")
 	year := fs.Int("year", 0, "Year to ingest (default: current year)")
 	compressionLevel := fs.Int("compression", 1, "Compression level (1-22)")
 
 	if err := fs.Parse(args); err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	if *stationID == 0 {
-		log.Fatal("Station ID required")
+		return fmt.Errorf("station ID required")
 	}
 
 	if *year == 0 {
 		*year = time.Now().Year()
 	}
 
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		return fmt.Errorf("failed to create data directory: %w", err)
+	}
+
 	dbPath := filepath.Join(dataDir, "metadata.sqlite3")
 	store, err := metadata.NewStore(dbPath)
 	if err != nil {
-		log.Fatalf("Failed to open metadata store: %v", err)
+		return fmt.Errorf("failed to open metadata store: %w", err)
 	}
 	defer store.Close()
 
-	client := api.NewClient(appKey)
+	client := newAPIClient(appKey)
 	startDate := time.Date(*year, 1, 1, 0, 0, 0, 0, time.UTC)
 	endDate := time.Date(*year, 12, 31, 0, 0, 0, 0, time.UTC)
 
 	fmt.Printf("Fetching daily data for station %d, year %d...\n", *stationID, *year)
 	apiRecords, err := client.FetchDailyData(*stationID, api.FormatCIMISDate(startDate), api.FormatCIMISDate(endDate))
 	if err != nil {
-		log.Fatalf("Failed to fetch data: %v", err)
+		return fmt.Errorf("failed to fetch data: %w", err)
 	}
 
 	records := api.ConvertDailyToRecords(apiRecords, uint16(*stationID))
 	if len(records) == 0 {
 		fmt.Println("No records to ingest")
-		return
+		return nil
 	}
 
 	// Use optimized encoding
 	cd := storage.ExtractColumns(records)
-	optData, meta, err := storage.OptimizeColumns(cd, uint16(*stationID))
+	optData, meta, err := optimizeColumns(cd, uint16(*stationID))
 	if err != nil {
-		log.Fatalf("Failed to optimize columns: %v", err)
+		return fmt.Errorf("failed to optimize columns: %w", err)
 	}
 
 	// Compress the optimized data
-	compressed, err := storage.CompressLevel(optData, *compressionLevel)
+	compressed, err := compressLevel(optData, *compressionLevel)
 	if err != nil {
-		log.Fatalf("Failed to compress: %v", err)
+		return fmt.Errorf("failed to compress: %w", err)
 	}
 
 	// Write to file with .opt.zst extension
 	stationDir := filepath.Join(dataDir, "stations", fmt.Sprintf("%03d", *stationID))
 	if err := os.MkdirAll(stationDir, 0755); err != nil {
-		log.Fatalf("Failed to create directory: %v", err)
+		return fmt.Errorf("failed to create directory: %w", err)
 	}
 
 	chunkPath := filepath.Join(stationDir, fmt.Sprintf("%d_optimized.zst", *year))
 	if err := os.WriteFile(chunkPath, compressed, 0644); err != nil {
-		log.Fatalf("Failed to write chunk: %v", err)
+		return fmt.Errorf("failed to write chunk: %w", err)
 	}
 
 	// Calculate stats
@@ -103,14 +116,15 @@ func cmdIngestOptimized(dataDir, appKey string, args []string) {
 	_ = meta // Would save to SQLite in production
 
 	// Also test decompression to verify
-	decompressed, err := storage.Decompress(nil, compressed)
+	decompressed, err := decompressData(nil, compressed)
 	if err != nil {
-		log.Fatalf("Failed to decompress test: %v", err)
+		return fmt.Errorf("failed to decompress test: %w", err)
 	}
 
 	if len(decompressed) != len(optData) {
-		log.Fatalf("Decompression mismatch: %d vs %d", len(decompressed), len(optData))
+		return fmt.Errorf("decompression mismatch: %d vs %d", len(decompressed), len(optData))
 	}
 
 	fmt.Printf("  ✓ Compression verification passed\n")
+	return nil
 }

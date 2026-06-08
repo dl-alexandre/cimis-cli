@@ -5,6 +5,18 @@ import (
 	"github.com/dl-alexandre/cli-tools/version"
 )
 
+type updateChecker interface {
+	Check(force bool) (*update.Info, error)
+	AutoCheck()
+}
+
+var (
+	newUpdateChecker = func(config update.Config) updateChecker {
+		return update.New(config)
+	}
+	displayUpdate = update.DisplayUpdate
+)
+
 // UpdateCheckCmd wraps cli-tools update functionality
 type UpdateCheckCmd struct {
 	Force  bool   `help:"Force check, bypassing cache" flag:"force"`
@@ -23,7 +35,7 @@ func CheckForUpdates(force bool, format string) error {
 
 // Run executes the update check
 func (c *UpdateCheckCmd) Run() error {
-	checker := update.New(update.Config{
+	checker := newUpdateChecker(update.Config{
 		CurrentVersion: version.Version,
 		BinaryName:     version.BinaryName,
 		GitHubRepo:     "dl-alexandre/cimis-cli",
@@ -35,13 +47,13 @@ func (c *UpdateCheckCmd) Run() error {
 		return err
 	}
 
-	return update.DisplayUpdate(info, version.BinaryName, c.Format)
+	return displayUpdate(info, version.BinaryName, c.Format)
 }
 
 // AutoUpdateCheck performs a background update check (for use at startup)
 // It returns immediately and doesn't block
 func AutoUpdateCheck() {
-	checker := update.New(update.Config{
+	checker := newUpdateChecker(update.Config{
 		CurrentVersion: version.Version,
 		BinaryName:     version.BinaryName,
 		GitHubRepo:     "dl-alexandre/cimis-cli",

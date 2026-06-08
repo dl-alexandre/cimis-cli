@@ -15,6 +15,8 @@ import (
 	"github.com/dl-alexandre/cimis-tsdb/storage"
 )
 
+var writeHeapProfile = pprof.WriteHeapProfile
+
 // Profiler manages CPU and memory profiling.
 type Profiler struct {
 	cpuFile   *os.File
@@ -85,7 +87,7 @@ func (p *Profiler) WriteHeapProfile(filename string) error {
 	defer f.Close()
 
 	runtime.GC() // Get up-to-date statistics
-	if err := pprof.WriteHeapProfile(f); err != nil {
+	if err := writeHeapProfile(f); err != nil {
 		return fmt.Errorf("could not write heap profile: %w", err)
 	}
 
