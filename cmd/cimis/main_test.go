@@ -94,7 +94,7 @@ func withNoAutoUpdate(t *testing.T) {
 	autoUpdateCheck = func() {}
 }
 
-func withTempWorkingDir(t *testing.T) string {
+func withTempWorkingDir(t *testing.T) {
 	t.Helper()
 
 	original, err := os.Getwd()
@@ -110,7 +110,6 @@ func withTempWorkingDir(t *testing.T) string {
 			t.Fatalf("restore cwd: %v", err)
 		}
 	})
-	return dir
 }
 
 func TestParseCacheSize(t *testing.T) {
@@ -1398,7 +1397,9 @@ func TestCmdIngestWithMockAPI(t *testing.T) {
 	installMockCIMISClients(t, server.URL)
 
 	output := captureStdout(t, func() {
-		cmdIngest(t.TempDir(), "test-key", []string{"-station", "2", "-year", "2024"})
+		if err := runIngest(t.TempDir(), "test-key", []string{"-station", "2", "-year", "2024"}); err != nil {
+			t.Fatalf("runIngest() error = %v", err)
+		}
 	})
 	if !strings.Contains(output, "Ingested 1 daily records") {
 		t.Fatalf("cmdIngest output = %q", output)
@@ -1518,7 +1519,9 @@ func TestCmdIngestSkipExistingAndNoRecords(t *testing.T) {
 	installMockCIMISClients(t, server.URL)
 
 	output := captureStdout(t, func() {
-		cmdIngest(dataDir, "test-key", []string{"-station", "2", "-year", "2024"})
+		if err := runIngest(dataDir, "test-key", []string{"-station", "2", "-year", "2024"}); err != nil {
+			t.Fatalf("runIngest() error = %v", err)
+		}
 	})
 	if !strings.Contains(output, "already exists") {
 		t.Fatalf("cmdIngest skip output = %q", output)
@@ -1529,14 +1532,18 @@ func TestCmdIngestSkipExistingAndNoRecords(t *testing.T) {
 	installMockCIMISClients(t, emptyServer.URL)
 
 	output = captureStdout(t, func() {
-		cmdIngest(t.TempDir(), "test-key", []string{"-station", "2", "-year", "2024"})
+		if err := runIngest(t.TempDir(), "test-key", []string{"-station", "2", "-year", "2024"}); err != nil {
+			t.Fatalf("runIngest() error = %v", err)
+		}
 	})
 	if !strings.Contains(output, "No records found") {
 		t.Fatalf("cmdIngest no-record output = %q", output)
 	}
 
 	output = captureStdout(t, func() {
-		cmdIngest(t.TempDir(), "test-key", []string{"-station", "2"})
+		if err := runIngest(t.TempDir(), "test-key", []string{"-station", "2"}); err != nil {
+			t.Fatalf("runIngest() error = %v", err)
+		}
 	})
 	if !strings.Contains(output, "No records found") {
 		t.Fatalf("cmdIngest default-year no-record output = %q", output)

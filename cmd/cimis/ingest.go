@@ -11,10 +11,6 @@ import (
 	"github.com/dl-alexandre/cimis-tsdb/metadata"
 )
 
-func cmdIngest(dataDir, appKey string, args []string) {
-	fatalIfErr(runIngest(dataDir, appKey, args))
-}
-
 func runIngest(dataDir, appKey string, args []string) error {
 	if appKey == "" {
 		return fmt.Errorf("CIMIS app key required")
