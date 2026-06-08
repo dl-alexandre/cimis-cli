@@ -95,7 +95,7 @@ jobs:
         uses: codecov/codecov-action@v6
         if: matrix.os == 'ubuntu-latest'
         with:
-          file: ./.artifacts/coverage/coverage.out
+          files: ./.artifacts/coverage/coverage.out
           flags: unittests
           fail_ci_if_error: false
 
