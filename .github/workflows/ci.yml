@@ -92,7 +92,7 @@ jobs:
           retention-days: 7
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v6
+        uses: codecov/codecov-action@v7
         if: matrix.os == 'ubuntu-latest'
         with:
           files: ./.artifacts/coverage/coverage.out
@@ -178,7 +178,7 @@ jobs:
 
       - name: Run golangci-lint
         continue-on-error: true
-        uses: golangci/golangci-lint-action@v9.2.0
+        uses: golangci/golangci-lint-action@v9.2.1
         with:
           version: v2.12.2
           skip-cache: true
