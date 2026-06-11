@@ -1,6 +1,6 @@
 module github.com/dl-alexandre/cimis-cli
 
-go 1.25.0
+go 1.26.0
 
 require (
 	github.com/dl-alexandre/cimis-tsdb v1.0.0
