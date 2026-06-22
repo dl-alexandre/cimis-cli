@@ -19,7 +19,8 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Validate workflow syntax
-        run: ruby -e 'Dir[".github/workflows/*.{yml,yaml}"].each { |f| require "yaml"; YAML.load_file(f); puts "validated #{f}" }'
+        run: |
+          ruby -e 'Dir[".github/workflows/*.{yml,yaml}"].each { |f| require "yaml"; YAML.load_file(f); puts "validated #{f}" }'
 
   test:
     name: Test
