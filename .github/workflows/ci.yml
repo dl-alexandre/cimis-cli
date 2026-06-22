@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Validate workflow syntax
         run: ruby -e 'Dir[".github/workflows/*.{yml,yaml}"].each { |f| require "yaml"; YAML.load_file(f); puts "validated #{f}" }'
@@ -32,10 +32,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Checkout cimis-tsdb
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: dl-alexandre/cimis-tsdb
           token: ${{ secrets.GH_PAT }}
@@ -118,10 +118,10 @@ jobs:
     needs: test
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Checkout cimis-tsdb
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: dl-alexandre/cimis-tsdb
           token: ${{ secrets.GH_PAT }}
@@ -171,10 +171,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Checkout cimis-tsdb
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: dl-alexandre/cimis-tsdb
           token: ${{ secrets.GH_PAT }}
@@ -205,10 +205,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Checkout cimis-tsdb
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: dl-alexandre/cimis-tsdb
           token: ${{ secrets.GH_PAT }}
