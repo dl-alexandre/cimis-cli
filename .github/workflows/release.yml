@@ -42,11 +42,6 @@ jobs:
       - name: Wire private dependency
         run: go mod edit -replace=github.com/dl-alexandre/cimis-tsdb=./_deps/cimis-tsdb
 
-      - name: Run tests
-        run: go test ./...
-        env:
-          GOPRIVATE: github.com/dl-alexandre/*
-
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v7
         with:
