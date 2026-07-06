@@ -115,9 +115,6 @@ flatpak:
 
 srpm:
   enabled: true
-  summary: "CLI for California Irrigation Management Information System (CIMIS) weather data"
-  license: MIT
-  url: https://github.com/dl-alexandre/cimis-cli
 
 scoops:
   - repository:
