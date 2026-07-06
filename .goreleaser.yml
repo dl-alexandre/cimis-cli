@@ -113,9 +113,6 @@ flatpak:
       - --share=network
       - --filesystem=home
 
-srpm:
-  enabled: true
-
 scoops:
   - repository:
       owner: dl-alexandre
