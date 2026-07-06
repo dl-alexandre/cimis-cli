@@ -39,8 +39,13 @@ jobs:
         run: |
           git config --global url."https://x-access-token:${{ secrets.GH_PAT }}@github.com/".insteadOf "https://github.com/"
 
+      - name: Wire private dependency
+        run: go mod edit -replace=github.com/dl-alexandre/cimis-tsdb=./_deps/cimis-tsdb
+
       - name: Run tests
         run: go test ./...
+        env:
+          GOPRIVATE: github.com/dl-alexandre/*
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v7
@@ -52,3 +57,4 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
+          GOPRIVATE: github.com/dl-alexandre/*
