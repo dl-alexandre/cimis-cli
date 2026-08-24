@@ -227,3 +227,27 @@ jobs:
 
       - name: Run security scan
         run: make security
+
+  gate:
+    name: CI Gate
+    if: always()
+    needs: [dependabot-actions-check, test, build, lint, security]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require the checks for this update type
+        env:
+          ACTIONS_UPDATE: ${{ startsWith(github.head_ref, 'dependabot/github_actions/') && 'true' || 'false' }}
+          ACTIONS_CHECK: ${{ needs.dependabot-actions-check.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          LINT_RESULT: ${{ needs.lint.result }}
+          SECURITY_RESULT: ${{ needs.security.result }}
+        run: |
+          if [ "$ACTIONS_UPDATE" = "true" ]; then
+            test "$ACTIONS_CHECK" = "success"
+          else
+            test "$TEST_RESULT" = "success"
+            test "$BUILD_RESULT" = "success"
+            test "$LINT_RESULT" = "success"
+            test "$SECURITY_RESULT" = "success"
+          fi
