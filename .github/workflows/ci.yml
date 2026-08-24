@@ -236,7 +236,7 @@ jobs:
     steps:
       - name: Require the checks for this update type
         env:
-          ACTIONS_UPDATE: ${{ startsWith(github.head_ref, 'dependabot/github_actions/') && 'true' || 'false' }}
+          ACTIONS_UPDATE: ${{ github.actor == 'dependabot[bot]' && startsWith(github.head_ref, 'dependabot/github_actions/') && 'true' || 'false' }}
           ACTIONS_CHECK: ${{ needs.dependabot-actions-check.result }}
           TEST_RESULT: ${{ needs.test.result }}
           BUILD_RESULT: ${{ needs.build.result }}
