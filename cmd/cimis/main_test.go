@@ -326,6 +326,150 @@ func TestPrintUsage(t *testing.T) {
 	}
 }
 
+func TestKongCommandAndFlagParsing(t *testing.T) {
+	t.Setenv("CIMIS_APP_KEY", "environment-key")
+	tests := []struct {
+		name    string
+		args    []string
+		command string
+		check   func(*testing.T, *CLI)
+	}{
+		{
+			name:    "fetch accepts legacy single dash and global flags after command",
+			args:    []string{"fetch", "-station", "42", "-days", "3", "-hourly", "--data-dir", "/tmp/cimis-data", "--app-key", "explicit-key"},
+			command: "fetch",
+			check: func(t *testing.T, cli *CLI) {
+				if cli.Fetch.Station != 42 || cli.Fetch.Days != 3 || !cli.Fetch.Hourly {
+					t.Fatalf("fetch options = %+v", cli.Fetch)
+				}
+				if cli.DataDir != "/tmp/cimis-data" || cli.AppKey != "explicit-key" {
+					t.Fatalf("globals = %+v", cli.Globals)
+				}
+			},
+		},
+		{
+			name:    "streaming fetch",
+			args:    []string{"fetch-streaming", "--stations=2,5-6", "--year", "2024", "--start", "2024-01-01", "--end", "2024-01-31", "--concurrency", "2", "--gzip=false", "--format", "v2", "--dry-run", "--perf", "--allocs", "--retries", "0", "--out", "/tmp/out"},
+			command: "fetch-streaming",
+			check: func(t *testing.T, cli *CLI) {
+				got := cli.FetchStreaming
+				if got.Stations != "2,5-6" || got.Year != 2024 || got.Start != "2024-01-01" || got.End != "2024-01-31" || got.Concurrency != 2 {
+					t.Fatalf("fetch-streaming options = %+v", got)
+				}
+				if got.Gzip || got.Format != "v2" || !got.DryRun || !got.Perf || !got.Allocs || got.Retries != 0 || got.OutDir != "/tmp/out" {
+					t.Fatalf("fetch-streaming options = %+v", got)
+				}
+			},
+		},
+		{
+			name:    "ingest and optimized ingest",
+			args:    []string{"ingest-opt", "--station", "8", "--year", "2023", "--compression", "7"},
+			command: "ingest-opt",
+			check: func(t *testing.T, cli *CLI) {
+				if cli.IngestOpt.Station != 8 || cli.IngestOpt.Year != 2023 || cli.IngestOpt.Compression != 7 {
+					t.Fatalf("ingest-opt options = %+v", cli.IngestOpt)
+				}
+			},
+		},
+		{
+			name:    "ingest",
+			args:    []string{"ingest", "--station", "6", "--year", "2022", "--compression", "4"},
+			command: "ingest",
+			check: func(t *testing.T, cli *CLI) {
+				if cli.Ingest.Station != 6 || cli.Ingest.Year != 2022 || cli.Ingest.Compression != 4 {
+					t.Fatalf("ingest options = %+v", cli.Ingest)
+				}
+			},
+		},
+		{
+			name:    "query",
+			args:    []string{"query", "-station", "2", "-start", "2024-01-01", "-end", "2024-02-01", "-hourly", "-perf", "-cache", "64MB"},
+			command: "query",
+			check: func(t *testing.T, cli *CLI) {
+				got := cli.Query
+				if got.Station != 2 || got.Start != "2024-01-01" || got.End != "2024-02-01" || !got.Hourly || !got.Perf || got.Cache != "64MB" {
+					t.Fatalf("query options = %+v", got)
+				}
+			},
+		},
+		{
+			name:    "profile duration and stats",
+			args:    []string{"profile", "-duration", "5s", "-stats"},
+			command: "profile",
+			check: func(t *testing.T, cli *CLI) {
+				if cli.Profile.Duration != 5*time.Second || !cli.Profile.Stats {
+					t.Fatalf("profile options = %+v", cli.Profile)
+				}
+			},
+		},
+		{
+			name:    "update flags",
+			args:    []string{"check-updates", "-force", "-json"},
+			command: "check-updates",
+			check: func(t *testing.T, cli *CLI) {
+				if !cli.CheckUpdates.Force || !cli.CheckUpdates.JSON {
+					t.Fatalf("check-updates options = %+v", cli.CheckUpdates)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := &CLI{}
+			var stdout, stderr strings.Builder
+			ctx, err := parseCLI(root, tt.args, &stdout, &stderr, func(int) {})
+			if err != nil {
+				t.Fatalf("parseCLI() error = %v; stdout=%q stderr=%q", err, stdout.String(), stderr.String())
+			}
+			if got := ctx.Command(); got != tt.command {
+				t.Fatalf("selected command = %q, want %q", got, tt.command)
+			}
+			tt.check(t, root)
+		})
+	}
+}
+
+func TestKongGlobalFlagsBeforeSubcommandAndEnvironmentDefaults(t *testing.T) {
+	t.Setenv("CIMIS_APP_KEY", "environment-key")
+	root := &CLI{}
+	var stdout, stderr strings.Builder
+	ctx, err := parseCLI(root, []string{"-data-dir", "/tmp/cimis-root", "init"}, &stdout, &stderr, func(int) {})
+	if err != nil {
+		t.Fatalf("parseCLI() error = %v", err)
+	}
+	if ctx.Command() != "init" {
+		t.Fatalf("selected command = %q, want init", ctx.Command())
+	}
+	if root.DataDir != "/tmp/cimis-root" || root.AppKey != "environment-key" {
+		t.Fatalf("globals = %+v", root.Globals)
+	}
+}
+
+func TestKongHelpUsesConfiguredWriter(t *testing.T) {
+	root := &CLI{}
+	var stdout, stderr strings.Builder
+	exitCode := -1
+	_, err := parseCLI(root, []string{"fetch", "--help"}, &stdout, &stderr, func(code int) { exitCode = code })
+	if err != nil {
+		t.Fatalf("parseCLI() error = %v", err)
+	}
+	if exitCode != 0 {
+		t.Fatalf("help exit code = %d, want 0", exitCode)
+	}
+	if !strings.Contains(stdout.String(), "--station") || stderr.Len() != 0 {
+		t.Fatalf("help output stdout=%q stderr=%q", stdout.String(), stderr.String())
+	}
+}
+
+func TestNormalizeLegacyFlags(t *testing.T) {
+	got := normalizeLegacyFlags([]string{"-station", "-2", "-duration", "-5s", "-h", "--days=3"})
+	want := []string{"--station", "-2", "--duration", "-5s", "-h", "--days=3"}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("normalizeLegacyFlags() = %v, want %v", got, want)
+	}
+}
+
 func TestRunDispatchVersionAndUsage(t *testing.T) {
 	withNoAutoUpdate(t)
 

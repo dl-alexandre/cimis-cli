@@ -3,7 +3,6 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"os"
 	"os/signal"
@@ -15,6 +14,19 @@ import (
 	"github.com/dl-alexandre/cimis-cli/internal/profile"
 	"github.com/dl-alexandre/cimis-tsdb/storage"
 )
+
+type ProfileCmd struct {
+	CPU        string        `help:"CPU profile output file" name:"cpu"`
+	Heap       string        `help:"Heap profile output file" name:"heap"`
+	Allocs     string        `help:"Allocations profile output file" name:"allocs"`
+	Goroutines string        `help:"Goroutine profile output file" name:"goroutines"`
+	Mutex      string        `help:"Mutex profile output file" name:"mutex"`
+	Duration   time.Duration `help:"Profiling duration" name:"duration" default:"30s"`
+	Server     string        `help:"Start pprof server on address (e.g., localhost:6060)" name:"server"`
+	Stats      bool          `help:"Print runtime statistics" name:"stats"`
+	Station    int           `help:"Station ID for memory profiling during ingest" name:"station"`
+	Year       int           `help:"Year for memory profiling during ingest" name:"year"`
+}
 
 var (
 	notifyProfileSignal = func(ch chan<- os.Signal) {
@@ -32,30 +44,26 @@ func cmdProfile(dataDir string, args []string) {
 }
 
 func runProfile(dataDir string, args []string) error {
-	fs := flag.NewFlagSet("profile", flag.ContinueOnError)
-	cpu := fs.String("cpu", "", "CPU profile output file")
-	heap := fs.String("heap", "", "Heap profile output file")
-	allocs := fs.String("allocs", "", "Allocations profile output file")
-	goroutines := fs.String("goroutines", "", "Goroutine profile output file")
-	mutex := fs.String("mutex", "", "Mutex profile output file")
-	duration := fs.Duration("duration", 30*time.Second, "Profiling duration")
-	server := fs.String("server", "", "Start pprof server on address (e.g., localhost:6060)")
-	stats := fs.Bool("stats", false, "Print runtime statistics")
-	ingestStation := fs.Int("station", 0, "Station ID for memory profiling during ingest")
-	ingestYear := fs.Int("year", 0, "Year for memory profiling during ingest")
-
-	if err := fs.Parse(args); err != nil {
+	var options ProfileCmd
+	if err := parseCommandOptions("profile", args, &options); err != nil {
 		return err
 	}
+	return runProfileOptions(dataDir, options)
+}
 
+func (c *ProfileCmd) Run(globals *Globals) error {
+	return runProfileOptions(globals.DataDir, *c)
+}
+
+func runProfileOptions(dataDir string, options ProfileCmd) error {
 	// Start pprof server if requested
-	if *server != "" {
-		pprofServer := profile.StartPProfServer(*server)
-		fmt.Printf("pprof server started on %s\n", *server)
-		fmt.Printf("  CPU profile: curl http://%s/debug/pprof/profile\n", *server)
-		fmt.Printf("  Heap: curl http://%s/debug/pprof/heap\n", *server)
-		fmt.Printf("  Goroutines: curl http://%s/debug/pprof/goroutine\n", *server)
-		fmt.Printf("  Allocs: curl http://%s/debug/pprof/allocs\n", *server)
+	if options.Server != "" {
+		pprofServer := profile.StartPProfServer(options.Server)
+		fmt.Printf("pprof server started on %s\n", options.Server)
+		fmt.Printf("  CPU profile: curl http://%s/debug/pprof/profile\n", options.Server)
+		fmt.Printf("  Heap: curl http://%s/debug/pprof/heap\n", options.Server)
+		fmt.Printf("  Goroutines: curl http://%s/debug/pprof/goroutine\n", options.Server)
+		fmt.Printf("  Allocs: curl http://%s/debug/pprof/allocs\n", options.Server)
 		fmt.Println("Press Ctrl+C to stop...")
 
 		// Wait for interrupt
@@ -71,7 +79,7 @@ func runProfile(dataDir string, args []string) error {
 	}
 
 	// Print runtime stats
-	if *stats {
+	if options.Stats {
 		profile.PrintRuntimeStats(os.Stdout)
 		return nil
 	}
@@ -79,62 +87,62 @@ func runProfile(dataDir string, args []string) error {
 	profiler := profile.NewProfiler()
 
 	// CPU profiling
-	if *cpu != "" {
-		fmt.Printf("Starting CPU profile for %v...\n", *duration)
-		if err := profiler.StartCPUProfile(*cpu); err != nil {
+	if options.CPU != "" {
+		fmt.Printf("Starting CPU profile for %v...\n", options.Duration)
+		if err := profiler.StartCPUProfile(options.CPU); err != nil {
 			return fmt.Errorf("failed to start CPU profile: %w", err)
 		}
 
-		time.Sleep(*duration)
+		time.Sleep(options.Duration)
 
 		if err := stopCPUProfile(profiler); err != nil {
 			return fmt.Errorf("failed to stop CPU profile: %w", err)
 		}
-		fmt.Printf("CPU profile written to: %s\n", *cpu)
+		fmt.Printf("CPU profile written to: %s\n", options.CPU)
 	}
 
 	// Heap profiling
-	if *heap != "" {
-		if err := profiler.WriteHeapProfile(*heap); err != nil {
+	if options.Heap != "" {
+		if err := profiler.WriteHeapProfile(options.Heap); err != nil {
 			return fmt.Errorf("failed to write heap profile: %w", err)
 		}
-		fmt.Printf("Heap profile written to: %s\n", *heap)
+		fmt.Printf("Heap profile written to: %s\n", options.Heap)
 	}
 
 	// Allocs profiling
-	if *allocs != "" {
-		if err := profiler.ProfileAllocs(*allocs); err != nil {
+	if options.Allocs != "" {
+		if err := profiler.ProfileAllocs(options.Allocs); err != nil {
 			return fmt.Errorf("failed to write allocs profile: %w", err)
 		}
-		fmt.Printf("Allocs profile written to: %s\n", *allocs)
+		fmt.Printf("Allocs profile written to: %s\n", options.Allocs)
 	}
 
 	// Goroutine profiling
-	if *goroutines != "" {
-		if err := profiler.ProfileGoroutines(*goroutines); err != nil {
+	if options.Goroutines != "" {
+		if err := profiler.ProfileGoroutines(options.Goroutines); err != nil {
 			return fmt.Errorf("failed to write goroutine profile: %w", err)
 		}
-		fmt.Printf("Goroutine profile written to: %s\n", *goroutines)
+		fmt.Printf("Goroutine profile written to: %s\n", options.Goroutines)
 	}
 
 	// Mutex profiling
-	if *mutex != "" {
+	if options.Mutex != "" {
 		profile.EnableMutexProfiling(1)
-		time.Sleep(*duration)
-		if err := profiler.ProfileMutex(*mutex); err != nil {
+		time.Sleep(options.Duration)
+		if err := profiler.ProfileMutex(options.Mutex); err != nil {
 			return fmt.Errorf("failed to write mutex profile: %w", err)
 		}
-		fmt.Printf("Mutex profile written to: %s\n", *mutex)
+		fmt.Printf("Mutex profile written to: %s\n", options.Mutex)
 	}
 
 	// Memory profiling during ingestion
-	if *ingestStation > 0 && *ingestYear > 0 {
-		profileMemoryDuringIngest(*ingestStation, *ingestYear, dataDir)
+	if options.Station > 0 && options.Year > 0 {
+		profileMemoryDuringIngest(options.Station, options.Year, dataDir)
 		return nil
 	}
 
 	// If no specific profile requested, print stats
-	if *cpu == "" && *heap == "" && *allocs == "" && *goroutines == "" && *mutex == "" && !*stats && (*ingestStation == 0 || *ingestYear == 0) {
+	if options.CPU == "" && options.Heap == "" && options.Allocs == "" && options.Goroutines == "" && options.Mutex == "" && !options.Stats && (options.Station == 0 || options.Year == 0) {
 		fmt.Println("No profiling option specified. Use -help to see available options.")
 		fmt.Println("\nCommon usage:")
 		fmt.Println("  Profile CPU for 30 seconds:")

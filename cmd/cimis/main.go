@@ -1,12 +1,14 @@
 package main
 
 import (
-	"flag"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
 
+	"github.com/alecthomas/kong"
 	"github.com/dl-alexandre/cimis-cli/internal/cli"
 	cliver "github.com/dl-alexandre/cli-tools/version"
 )
@@ -17,40 +19,70 @@ var (
 	exitProcess     = os.Exit
 )
 
-// parseCacheSize parses cache size strings like "100MB", "1GB" to bytes.
-// Returns the size in bytes, or 0 if parsing fails.
-func parseCacheSize(sizeStr string) int64 {
-	if sizeStr == "" {
-		return 0
+// Globals are options accepted by every cimis command.
+type Globals struct {
+	DataDir string `help:"Data directory path" name:"data-dir" default:"./data"`
+	AppKey  string `help:"CIMIS API app key" name:"app-key" env:"CIMIS_APP_KEY"`
+}
+
+// CLI is the Kong command tree for cimis.
+type CLI struct {
+	Globals
+
+	Version        VersionCmd        `cmd:"" help:"Show version information"`
+	CheckUpdates   CheckUpdatesCmd   `cmd:"" help:"Check for available updates"`
+	Init           InitCmd           `cmd:"" help:"Initialize a local CIMIS database"`
+	Fetch          FetchCmd          `cmd:"" help:"Fetch recent data for one station"`
+	FetchStreaming FetchStreamingCmd `cmd:"" help:"Fetch and store data using the streaming API"`
+	Ingest         IngestCmd         `cmd:"" help:"Ingest daily data into the local database"`
+	IngestOpt      IngestOptCmd      `cmd:"" help:"Ingest daily data using optimized encoding"`
+	Query          QueryCmd          `cmd:"" help:"Query locally stored data"`
+	Stats          StatsCmd          `cmd:"" help:"Show database statistics"`
+	Verify         VerifyCmd         `cmd:"" help:"Verify database contents"`
+	Profile        ProfileCmd        `cmd:"" help:"Profile CIMIS CLI operations"`
+	Register       RegisterCmd       `cmd:"" help:"Open the CIMIS registration page"`
+	Login          LoginCmd          `cmd:"" help:"Open the CIMIS login page"`
+	APIDocs        APIDocsCmd        `cmd:"" help:"Open CIMIS API documentation"`
+}
+
+// parseCLI constructs a fresh parser so callers and tests can control output.
+
+func parseCLI(root *CLI, args []string, stdout, stderr io.Writer, exit func(int)) (*kong.Context, error) {
+	parser, err := kong.New(root,
+		kong.Name("cimis"),
+		kong.Description("Command-line tools for the California Irrigation Management Information System (CIMIS)."),
+		kong.Writers(stdout, stderr),
+		kong.Exit(exit),
+		kong.ConfigureHelp(kong.HelpOptions{Compact: true}),
+	)
+	if err != nil {
+		return nil, err
 	}
+	ctx, err := parser.Parse(normalizeLegacyFlags(args))
+	return ctx, err
+}
 
-	sizeStr = strings.TrimSpace(sizeStr)
-	sizeStr = strings.ToUpper(sizeStr)
-
-	// Try to parse with suffix
-	if strings.HasSuffix(sizeStr, "GB") {
-		numStr := strings.TrimSuffix(sizeStr, "GB")
-		if num, err := strconv.ParseFloat(numStr, 64); err == nil {
-			return int64(num * 1024 * 1024 * 1024)
-		}
-	} else if strings.HasSuffix(sizeStr, "MB") {
-		numStr := strings.TrimSuffix(sizeStr, "MB")
-		if num, err := strconv.ParseFloat(numStr, 64); err == nil {
-			return int64(num * 1024 * 1024)
-		}
-	} else if strings.HasSuffix(sizeStr, "KB") {
-		numStr := strings.TrimSuffix(sizeStr, "KB")
-		if num, err := strconv.ParseFloat(numStr, 64); err == nil {
-			return int64(num * 1024)
-		}
-	} else {
-		// Try to parse as plain bytes
-		if num, err := strconv.ParseInt(sizeStr, 10, 64); err == nil {
-			return num
-		}
+// normalizeLegacyFlags keeps accepting the standard-library form of long flags
+// (for example, -station) while Kong handles parsing and validation.
+func normalizeLegacyFlags(args []string) []string {
+	legacyNames := map[string]struct{}{
+		"help": {}, "data-dir": {}, "app-key": {}, "force": {}, "json": {}, "station": {}, "days": {}, "hourly": {},
+		"stations": {}, "year": {}, "start": {}, "end": {}, "concurrency": {}, "gzip": {}, "format": {}, "dry-run": {},
+		"perf": {}, "allocs": {}, "retries": {}, "out": {}, "compression": {}, "cache": {}, "cpu": {}, "heap": {},
+		"goroutines": {}, "mutex": {}, "duration": {}, "server": {}, "stats": {},
 	}
-
-	return 0
+	normalized := make([]string, len(args))
+	for i, arg := range args {
+		if len(arg) > 2 && strings.HasPrefix(arg, "-") && !strings.HasPrefix(arg, "--") {
+			name := strings.TrimPrefix(arg[1:], "-")
+			name, _, _ = strings.Cut(name, "=")
+			if _, ok := legacyNames[name]; ok {
+				arg = "-" + arg
+			}
+		}
+		normalized[i] = arg
+	}
+	return normalized
 }
 
 func main() {
@@ -59,19 +91,9 @@ func main() {
 	}
 }
 
-func commandExitCode(err error) int {
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		return 1
-	}
-	return 0
-}
-
 func run(args []string) int {
-	// Binary name is always cimis (set this BEFORE any version calls)
+	// Binary name is set before either version output or update checking.
 	cliver.BinaryName = "cimis"
-
-	// Start automatic update check in background (non-blocking)
 	autoUpdateCheck()
 
 	if len(args) < 2 {
@@ -79,79 +101,70 @@ func run(args []string) int {
 		return 1
 	}
 
-	// Global flags
-	fs := flag.NewFlagSet("cimis", flag.ContinueOnError)
-	dataDir := fs.String("data-dir", "./data", "Data directory path")
-	appKey := fs.String("app-key", os.Getenv("CIMIS_APP_KEY"), "CIMIS API app key")
-
-	// Subcommands
-	switch args[1] {
-	case "version":
-		fmt.Printf("cimis %s (%s) built %s\n", cliver.Version, cliver.GitCommit, cliver.BuildTime)
-
-	case "check-updates":
-		force := false
-		format := "table"
-		for i := 2; i < len(args); i++ {
-			if args[i] == "-force" || args[i] == "--force" {
-				force = true
-			} else if args[i] == "-json" || args[i] == "--json" {
-				format = "json"
-			}
-		}
-		_ = force
-		_ = format
-		if err := checkForUpdates(force, format); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+	root := &CLI{}
+	exitCode := -1
+	ctx, err := parseCLI(root, args[1:], os.Stdout, os.Stderr, func(code int) {
+		exitCode = code
+	})
+	if exitCode >= 0 {
+		return exitCode
+	}
+	if err != nil {
+		if len(args) > 1 && !knownCommand(args[1]) {
+			fmt.Fprintf(os.Stderr, "Unknown command: %s\n", args[1])
+			printUsage()
 			return 1
 		}
-
-	case "init":
-		return commandExitCode(runInit(*dataDir))
-
-	case "fetch":
-		fmt.Fprintln(os.Stderr, "Warning: 'fetch' command is deprecated. Use 'fetch-streaming' for better performance.")
-		return commandExitCode(runFetch(*dataDir, *appKey, args[2:]))
-
-	case "fetch-streaming":
-		return commandExitCode(runFetchStreaming(*dataDir, *appKey, args[2:]))
-
-	case "ingest":
-		return commandExitCode(runIngest(*dataDir, *appKey, args[2:]))
-
-	case "ingest-opt":
-		return commandExitCode(runIngestOptimized(*dataDir, *appKey, args[2:]))
-
-	case "query":
-		return commandExitCode(runQuery(*dataDir, args[2:]))
-
-	case "stats":
-		return commandExitCode(runStats(*dataDir))
-
-	case "verify":
-		return commandExitCode(runVerify(*dataDir))
-
-	case "profile":
-		return commandExitCode(runProfile(*dataDir, args[2:]))
-
-	case "register":
-		cmdRegister()
-
-	case "login":
-		cmdLogin()
-
-	case "api-docs":
-		cmdAPI()
-
-	default:
-		fmt.Fprintf(os.Stderr, "Unknown command: %s\n", args[1])
-		printUsage()
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		var parseErr *kong.ParseError
+		if errors.As(err, &parseErr) && parseErr.Context != nil {
+			_ = parseErr.Context.PrintUsage(false)
+		}
 		return 1
 	}
-
+	if err := ctx.Run(&root.Globals); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return 1
+	}
 	return 0
+}
+
+func knownCommand(name string) bool {
+	switch name {
+	case "version", "check-updates", "init", "fetch", "fetch-streaming", "ingest", "ingest-opt", "query", "stats", "verify", "profile", "register", "login", "api-docs":
+		return true
+	default:
+		return false
+	}
 }
 
 func printUsage() {
 	fmt.Println("Usage: cimis <command> [options]")
+}
+
+// parseCacheSize parses cache size strings like "100MB" and "1GB" to bytes.
+// Returns the size in bytes, or 0 if parsing fails.
+func parseCacheSize(sizeStr string) int64 {
+	if sizeStr == "" {
+		return 0
+	}
+
+	sizeStr = strings.ToUpper(strings.TrimSpace(sizeStr))
+	for _, suffix := range []struct {
+		name       string
+		multiplier float64
+	}{{"GB", 1024 * 1024 * 1024}, {"MB", 1024 * 1024}, {"KB", 1024}} {
+		if strings.HasSuffix(sizeStr, suffix.name) {
+			num, err := strconv.ParseFloat(strings.TrimSuffix(sizeStr, suffix.name), 64)
+			if err != nil {
+				return 0
+			}
+			return int64(num * suffix.multiplier)
+		}
+	}
+	value, err := strconv.ParseInt(sizeStr, 10, 64)
+	if err != nil {
+		return 0
+	}
+	return value
 }

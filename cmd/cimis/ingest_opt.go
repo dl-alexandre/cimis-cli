@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,6 +10,12 @@ import (
 	"github.com/dl-alexandre/cimis-tsdb/metadata"
 	"github.com/dl-alexandre/cimis-tsdb/storage"
 )
+
+type IngestOptCmd struct {
+	Station     int `help:"Station ID" name:"station"`
+	Year        int `help:"Year to ingest (defaults to current year)" name:"year"`
+	Compression int `help:"Compression level (1-22)" name:"compression" default:"1"`
+}
 
 var (
 	optimizeColumns = storage.OptimizeColumns
@@ -23,25 +28,27 @@ func cmdIngestOptimized(dataDir, appKey string, args []string) {
 }
 
 func runIngestOptimized(dataDir, appKey string, args []string) error {
+	var options IngestOptCmd
+	if err := parseCommandOptions("ingest-opt", args, &options); err != nil {
+		return err
+	}
+	return runIngestOptimizedOptions(dataDir, appKey, options)
+}
+
+func (c *IngestOptCmd) Run(globals *Globals) error {
+	return runIngestOptimizedOptions(globals.DataDir, globals.AppKey, *c)
+}
+
+func runIngestOptimizedOptions(dataDir, appKey string, options IngestOptCmd) error {
 	if appKey == "" {
 		return fmt.Errorf("CIMIS app key required")
 	}
-
-	fs := flag.NewFlagSet("ingest-optimized", flag.ContinueOnError)
-	stationID := fs.Int("station", 0, "Station ID")
-	year := fs.Int("year", 0, "Year to ingest (default: current year)")
-	compressionLevel := fs.Int("compression", 1, "Compression level (1-22)")
-
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
-
-	if *stationID == 0 {
+	if options.Station == 0 {
 		return fmt.Errorf("station ID required")
 	}
 
-	if *year == 0 {
-		*year = time.Now().Year()
+	if options.Year == 0 {
+		options.Year = time.Now().Year()
 	}
 
 	if err := os.MkdirAll(dataDir, 0755); err != nil {
@@ -56,16 +63,16 @@ func runIngestOptimized(dataDir, appKey string, args []string) error {
 	defer store.Close()
 
 	client := newAPIClient(appKey)
-	startDate := time.Date(*year, 1, 1, 0, 0, 0, 0, time.UTC)
-	endDate := time.Date(*year, 12, 31, 0, 0, 0, 0, time.UTC)
+	startDate := time.Date(options.Year, 1, 1, 0, 0, 0, 0, time.UTC)
+	endDate := time.Date(options.Year, 12, 31, 0, 0, 0, 0, time.UTC)
 
-	fmt.Printf("Fetching daily data for station %d, year %d...\n", *stationID, *year)
-	apiRecords, err := client.FetchDailyData(*stationID, api.FormatCIMISDate(startDate), api.FormatCIMISDate(endDate))
+	fmt.Printf("Fetching daily data for station %d, year %d...\n", options.Station, options.Year)
+	apiRecords, err := client.FetchDailyData(options.Station, api.FormatCIMISDate(startDate), api.FormatCIMISDate(endDate))
 	if err != nil {
 		return fmt.Errorf("failed to fetch data: %w", err)
 	}
 
-	records := api.ConvertDailyToRecords(apiRecords, uint16(*stationID))
+	records := api.ConvertDailyToRecords(apiRecords, uint16(options.Station))
 	if len(records) == 0 {
 		fmt.Println("No records to ingest")
 		return nil
@@ -73,24 +80,24 @@ func runIngestOptimized(dataDir, appKey string, args []string) error {
 
 	// Use optimized encoding
 	cd := storage.ExtractColumns(records)
-	optData, meta, err := optimizeColumns(cd, uint16(*stationID))
+	optData, meta, err := optimizeColumns(cd, uint16(options.Station))
 	if err != nil {
 		return fmt.Errorf("failed to optimize columns: %w", err)
 	}
 
 	// Compress the optimized data
-	compressed, err := compressLevel(optData, *compressionLevel)
+	compressed, err := compressLevel(optData, options.Compression)
 	if err != nil {
 		return fmt.Errorf("failed to compress: %w", err)
 	}
 
 	// Write to file with .opt.zst extension
-	stationDir := filepath.Join(dataDir, "stations", fmt.Sprintf("%03d", *stationID))
+	stationDir := filepath.Join(dataDir, "stations", fmt.Sprintf("%03d", options.Station))
 	if err := os.MkdirAll(stationDir, 0755); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
 
-	chunkPath := filepath.Join(stationDir, fmt.Sprintf("%d_optimized.zst", *year))
+	chunkPath := filepath.Join(stationDir, fmt.Sprintf("%d_optimized.zst", options.Year))
 	if err := os.WriteFile(chunkPath, compressed, 0644); err != nil {
 		return fmt.Errorf("failed to write chunk: %w", err)
 	}
