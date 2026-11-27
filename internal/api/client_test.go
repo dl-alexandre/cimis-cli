@@ -528,6 +528,29 @@ func TestFetchDailyDataHTTPError(t *testing.T) {
 	}
 }
 
+func TestFetchDailyDataHTTPErrorIncludesEndpointAndResponse(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/StationWeb/GetDataByStationNumber" {
+			t.Errorf("path = %q, want /StationWeb/GetDataByStationNumber", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = fmt.Fprint(w, "request rate limited")
+	}))
+	defer server.Close()
+
+	client := NewClient("test-key")
+	client.SetBaseURL(server.URL)
+	_, err := client.FetchDailyData(2, "2024-06-15", "2024-06-16")
+	if err == nil {
+		t.Fatal("FetchDailyData() error = nil, want HTTP status error")
+	}
+	for _, want := range []string{"429", "/StationWeb/GetDataByStationNumber", "request rate limited"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("FetchDailyData() error = %q, want it to contain %q", err, want)
+		}
+	}
+}
+
 func TestGetJSONRequestAndTransportErrors(t *testing.T) {
 	t.Run("request build error", func(t *testing.T) {
 		client := NewClient("test-key")

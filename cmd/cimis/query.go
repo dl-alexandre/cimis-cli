@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"path/filepath"
 	"time"
@@ -12,25 +11,33 @@ import (
 	"github.com/dl-alexandre/cimis-tsdb/types"
 )
 
+type QueryCmd struct {
+	Station int    `help:"Station ID" name:"station"`
+	Start   string `help:"Start date (YYYY-MM-DD)" name:"start"`
+	End     string `help:"End date (YYYY-MM-DD)" name:"end"`
+	Hourly  bool   `help:"Query hourly data (default: daily)" name:"hourly"`
+	Perf    bool   `help:"Show performance metrics" name:"perf"`
+	Cache   string `help:"Enable caching with specified size (e.g., 100MB, 1GB)" name:"cache"`
+}
+
 func cmdQuery(dataDir string, args []string) {
 	fatalIfErr(runQuery(dataDir, args))
 }
 
 func runQuery(dataDir string, args []string) error {
-	// Parse flags
-	fs := flag.NewFlagSet("query", flag.ContinueOnError)
-	stationID := fs.Int("station", 0, "Station ID")
-	startDate := fs.String("start", "", "Start date (YYYY-MM-DD)")
-	endDate := fs.String("end", "", "End date (YYYY-MM-DD)")
-	hourly := fs.Bool("hourly", false, "Query hourly data (default: daily)")
-	perf := fs.Bool("perf", false, "Show performance metrics")
-	cache := fs.String("cache", "", "Enable caching with specified size (e.g., 100MB, 1GB)")
-
-	if err := fs.Parse(args); err != nil {
+	var options QueryCmd
+	if err := parseCommandOptions("query", args, &options); err != nil {
 		return err
 	}
+	return runQueryOptions(dataDir, options)
+}
 
-	if *stationID == 0 {
+func (c *QueryCmd) Run(globals *Globals) error {
+	return runQueryOptions(globals.DataDir, *c)
+}
+
+func runQueryOptions(dataDir string, options QueryCmd) error {
+	if options.Station == 0 {
 		return fmt.Errorf("station ID required")
 	}
 
@@ -38,11 +45,11 @@ func runQuery(dataDir string, args []string) error {
 	queryStart := time.Now()
 
 	// Parse dates
-	start, err := time.Parse("2006-01-02", *startDate)
+	start, err := time.Parse("2006-01-02", options.Start)
 	if err != nil {
 		return fmt.Errorf("invalid start date: %w", err)
 	}
-	end, err := time.Parse("2006-01-02", *endDate)
+	end, err := time.Parse("2006-01-02", options.End)
 	if err != nil {
 		return fmt.Errorf("invalid end date: %w", err)
 	}
@@ -62,10 +69,10 @@ func runQuery(dataDir string, args []string) error {
 	}
 	var cachedReader *storage.CachedChunkReader
 
-	if *cache != "" {
-		cacheSize := parseCacheSize(*cache)
+	if options.Cache != "" {
+		cacheSize := parseCacheSize(options.Cache)
 		if cacheSize <= 0 {
-			return fmt.Errorf("invalid cache size: %s", *cache)
+			return fmt.Errorf("invalid cache size: %s", options.Cache)
 		}
 		cachedReader = storage.NewCachedChunkReader(dataDir, cacheSize)
 		reader = cachedReader
@@ -77,20 +84,20 @@ func runQuery(dataDir string, args []string) error {
 	startYear := start.Year()
 	endYear := end.Year()
 	dataType := types.DataTypeDaily
-	if *hourly {
+	if options.Hourly {
 		dataType = types.DataTypeHourly
 	}
 
 	// Time metadata lookup
 	metadataStart := time.Now()
-	chunks, err := getChunksForYearRange(store, uint16(*stationID), startYear, endYear, dataType)
+	chunks, err := getChunksForYearRange(store, uint16(options.Station), startYear, endYear, dataType)
 	metadataDuration := time.Since(metadataStart)
 	if err != nil {
 		return fmt.Errorf("failed to get chunks: %w", err)
 	}
 
 	if len(chunks) == 0 {
-		fmt.Printf("No data found for station %d in range %s to %s\n", *stationID, *startDate, *endDate)
+		fmt.Printf("No data found for station %d in range %s to %s\n", options.Station, options.Start, options.End)
 		return nil
 	}
 
@@ -103,7 +110,7 @@ func runQuery(dataDir string, args []string) error {
 	var totalFilterTime time.Duration
 
 	for _, chunk := range chunks {
-		if *hourly {
+		if options.Hourly {
 			// Time chunk read
 			chunkReadStart := time.Now()
 			records, err := reader.ReadHourlyChunk(chunk.StationID, chunk.Year)
@@ -176,7 +183,7 @@ func runQuery(dataDir string, args []string) error {
 	}
 
 	// Print performance metrics if requested
-	if *perf {
+	if options.Perf {
 		totalDuration := time.Since(queryStart)
 		avgChunkReadTime := time.Duration(0)
 		if chunksRead > 0 {

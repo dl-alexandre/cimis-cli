@@ -3,6 +3,7 @@ module github.com/dl-alexandre/cimis-cli
 go 1.26.0
 
 require (
+	github.com/alecthomas/kong v1.17.0
 	github.com/dl-alexandre/cimis-tsdb v1.0.0
 	github.com/dl-alexandre/cli-tools v0.0.1
 )

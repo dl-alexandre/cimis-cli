@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,6 +14,27 @@ import (
 	"github.com/dl-alexandre/cimis-tsdb/types"
 )
 
+type FetchCmd struct {
+	Station int  `help:"Station ID" name:"station"`
+	Days    int  `help:"Number of days to fetch" name:"days" default:"7"`
+	Hourly  bool `help:"Fetch hourly data (default: daily)" name:"hourly"`
+}
+
+type FetchStreamingCmd struct {
+	Stations    string `help:"CSV list or range (e.g., '2,5,10' or '1-10')" name:"stations"`
+	Year        int    `help:"Year to fetch (defaults to current year)" name:"year"`
+	Start       string `help:"Start date YYYY-MM-DD (overrides year; MM/DD/YYYY also accepted)" name:"start"`
+	End         string `help:"End date YYYY-MM-DD (overrides year; MM/DD/YYYY also accepted)" name:"end"`
+	Concurrency int    `help:"Worker pool size" name:"concurrency" default:"4"`
+	Gzip        bool   `help:"Enable gzip compression" name:"gzip" default:"true"`
+	Format      string `help:"Output format: v1|v2" name:"format" default:"v1"`
+	DryRun      bool   `help:"Fetch and decode only, don't write" name:"dry-run"`
+	Perf        bool   `help:"Print detailed performance metrics" name:"perf"`
+	Allocs      bool   `help:"Measure memory allocations per station (use with concurrency=1)" name:"allocs"`
+	Retries     int    `help:"Max retries on failure" name:"retries" default:"3"`
+	OutDir      string `help:"Output directory" name:"out"`
+}
+
 var (
 	retrySleep  = time.Sleep
 	retryJitter = func(backoff time.Duration) time.Duration {
@@ -27,43 +47,45 @@ func cmdFetch(dataDir, appKey string, args []string) {
 }
 
 func runFetch(dataDir, appKey string, args []string) error {
+	var options FetchCmd
+	if err := parseCommandOptions("fetch", args, &options); err != nil {
+		return err
+	}
+	return runFetchOptions(dataDir, appKey, options)
+}
+
+func (c *FetchCmd) Run(globals *Globals) error {
+	fmt.Fprintln(os.Stderr, "Warning: 'fetch' command is deprecated. Use 'fetch-streaming' for better performance.")
+	return runFetchOptions(globals.DataDir, globals.AppKey, *c)
+}
+
+func runFetchOptions(dataDir, appKey string, options FetchCmd) error {
 	if appKey == "" {
 		return fmt.Errorf("CIMIS app key required (use -app-key flag or CIMIS_APP_KEY env var)")
 	}
-
-	// Parse flags
-	fs := flag.NewFlagSet("fetch", flag.ContinueOnError)
-	stationID := fs.Int("station", 0, "Station ID")
-	days := fs.Int("days", 7, "Number of days to fetch")
-	hourly := fs.Bool("hourly", false, "Fetch hourly data (default: daily)")
-
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
-
-	if *stationID == 0 {
+	if options.Station == 0 {
 		return fmt.Errorf("station ID required")
 	}
 
 	// Calculate date range
 	endDate := time.Now()
-	startDate := endDate.AddDate(0, 0, -*days)
+	startDate := endDate.AddDate(0, 0, -options.Days)
 
 	// Fetch data
 	client := newAPIClient(appKey)
 
-	if *hourly {
-		records, err := client.FetchHourlyData(*stationID, api.FormatCIMISDate(startDate), api.FormatCIMISDate(endDate))
+	if options.Hourly {
+		records, err := client.FetchHourlyData(options.Station, api.FormatCIMISDate(startDate), api.FormatCIMISDate(endDate))
 		if err != nil {
 			return fmt.Errorf("failed to fetch hourly data: %w", err)
 		}
-		fmt.Printf("Fetched %d hourly records for station %d\n", len(records), *stationID)
+		fmt.Printf("Fetched %d hourly records for station %d\n", len(records), options.Station)
 	} else {
-		records, err := client.FetchDailyData(*stationID, api.FormatCIMISDate(startDate), api.FormatCIMISDate(endDate))
+		records, err := client.FetchDailyData(options.Station, api.FormatCIMISDate(startDate), api.FormatCIMISDate(endDate))
 		if err != nil {
 			return fmt.Errorf("failed to fetch daily data: %w", err)
 		}
-		fmt.Printf("Fetched %d daily records for station %d\n", len(records), *stationID)
+		fmt.Printf("Fetched %d daily records for station %d\n", len(records), options.Station)
 	}
 
 	return nil
@@ -74,36 +96,33 @@ func cmdFetchStreaming(dataDir, appKey string, args []string) {
 }
 
 func runFetchStreaming(dataDir, appKey string, args []string) error {
+	var options FetchStreamingCmd
+	if err := parseCommandOptions("fetch-streaming", args, &options); err != nil {
+		return err
+	}
+	return runFetchStreamingOptions(dataDir, appKey, options)
+}
+
+func (c *FetchStreamingCmd) Run(globals *Globals) error {
+	return runFetchStreamingOptions(globals.DataDir, globals.AppKey, *c)
+}
+
+func runFetchStreamingOptions(dataDir, appKey string, options FetchStreamingCmd) error {
 	if appKey == "" {
 		appKey = os.Getenv("CIMIS_APP_KEY")
 	}
 	if appKey == "" {
 		return fmt.Errorf("CIMIS app key required (use -app-key flag or CIMIS_APP_KEY env var)")
 	}
-
-	fs := flag.NewFlagSet("fetch-streaming", flag.ContinueOnError)
-	stations := fs.String("stations", "", "CSV list or range (e.g., '2,5,10' or '1-10')")
-	year := fs.Int("year", time.Now().Year(), "Year to fetch")
-	startStr := fs.String("start", "", "Start date YYYY-MM-DD (overrides year; MM/DD/YYYY also accepted)")
-	endStr := fs.String("end", "", "End date YYYY-MM-DD (overrides year; MM/DD/YYYY also accepted)")
-	concurrency := fs.Int("concurrency", 4, "Worker pool size")
-	gzip := fs.Bool("gzip", true, "Enable gzip compression")
-	format := fs.String("format", "v1", "Output format: v1|v2")
-	dryRun := fs.Bool("dry-run", false, "Fetch and decode only, don't write")
-	perf := fs.Bool("perf", false, "Print detailed performance metrics")
-	allocs := fs.Bool("allocs", false, "Measure memory allocations per station (use with concurrency=1)")
-	retries := fs.Int("retries", 3, "Max retries on failure")
-	outDir := fs.String("out", dataDir, "Output directory")
-
-	if err := fs.Parse(args); err != nil {
-		return err
+	if options.Year == 0 {
+		options.Year = time.Now().Year()
 	}
 
-	if *stations == "" {
+	if options.Stations == "" {
 		return fmt.Errorf("stations required (-stations flag)")
 	}
 
-	stationList, err := parseStationList(*stations)
+	stationList, err := parseStationList(options.Stations)
 	if err != nil {
 		return fmt.Errorf("invalid station list: %w", err)
 	}
@@ -115,29 +134,33 @@ func runFetchStreaming(dataDir, appKey string, args []string) error {
 	sortStations(stationList)
 
 	var startDate, endDate time.Time
-	if *startStr != "" && *endStr != "" {
-		startDate, err = api.ParseCIMISDate(*startStr)
+	if options.Start != "" && options.End != "" {
+		startDate, err = api.ParseCIMISDate(options.Start)
 		if err != nil {
 			return fmt.Errorf("invalid start date: %w", err)
 		}
-		endDate, err = api.ParseCIMISDate(*endStr)
+		endDate, err = api.ParseCIMISDate(options.End)
 		if err != nil {
 			return fmt.Errorf("invalid end date: %w", err)
 		}
 	} else {
-		startDate = time.Date(*year, 1, 1, 0, 0, 0, 0, time.UTC)
-		endDate = time.Date(*year, 12, 31, 0, 0, 0, 0, time.UTC)
+		startDate = time.Date(options.Year, 1, 1, 0, 0, 0, 0, time.UTC)
+		endDate = time.Date(options.Year, 12, 31, 0, 0, 0, 0, time.UTC)
 	}
 
-	if *format != "v1" && *format != "v2" {
+	if options.Format != "v1" && options.Format != "v2" {
 		return fmt.Errorf("format must be v1 or v2")
 	}
 
-	if err := os.MkdirAll(*outDir, 0755); err != nil {
+	outDir := options.OutDir
+	if outDir == "" {
+		outDir = dataDir
+	}
+	if err := os.MkdirAll(outDir, 0755); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
-	dbPath := filepath.Join(*outDir, "metadata.sqlite3")
+	dbPath := filepath.Join(outDir, "metadata.sqlite3")
 	store, err := metadata.NewStore(dbPath)
 	if err != nil {
 		return fmt.Errorf("failed to open metadata store: %w", err)
@@ -145,10 +168,10 @@ func runFetchStreaming(dataDir, appKey string, args []string) error {
 	defer store.Close()
 
 	compressionLevel := 1
-	if *gzip {
+	if options.Gzip {
 		compressionLevel = 3
 	}
-	writer, err := newChunkWriter(*outDir, compressionLevel)
+	writer, err := newChunkWriter(outDir, compressionLevel)
 	if err != nil {
 		return fmt.Errorf("failed to create chunk writer: %w", err)
 	}
@@ -162,12 +185,12 @@ func runFetchStreaming(dataDir, appKey string, args []string) error {
 	jobs := make(chan job, len(stationList))
 	results := make(chan stationFetchResult, len(stationList))
 
-	for w := 0; w < *concurrency; w++ {
+	for w := 0; w < options.Concurrency; w++ {
 		go func() {
 			for j := range jobs {
 				m := fetchStationStreaming(
 					client, store, writer, j.stationID,
-					startDate, endDate, *format, *dryRun, *retries,
+					startDate, endDate, options.Format, options.DryRun, options.Retries,
 				)
 				results <- m
 			}
@@ -200,7 +223,7 @@ func runFetchStreaming(dataDir, appKey string, args []string) error {
 	fmt.Printf("Failed: %d\n", failCount)
 	fmt.Printf("Total records: %d\n", totalRecords)
 
-	if *perf {
+	if options.Perf {
 		fmt.Println("\n=== Performance Metrics ===")
 		for _, m := range allMetrics {
 			if m.success {
@@ -224,7 +247,7 @@ func runFetchStreaming(dataDir, appKey string, args []string) error {
 		fmt.Printf("\nWarning: %d station(s) failed\n", failCount)
 	}
 
-	if *allocs {
+	if options.Allocs {
 		fmt.Println("\nNote: Allocation tracking enabled (authoritative when concurrency=1)")
 	}
 
